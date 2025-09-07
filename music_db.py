@@ -38,6 +38,7 @@ class MusicDatabase:
                     current_song_id INTEGER,
                     next_song_id INTEGER,
                     playlist_position INTEGER DEFAULT 0,
+                    is_streaming BOOLEAN DEFAULT 0,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (current_song_id) REFERENCES songs (id),
                     FOREIGN KEY (next_song_id) REFERENCES songs (id),
@@ -45,10 +46,14 @@ class MusicDatabase:
                 )
             ''')
             
-            # Ensure playback_state has exactly one row
-            cursor.execute('SELECT COUNT(*) FROM playback_state')
-            if cursor.fetchone()[0] == 0:
-                cursor.execute('INSERT INTO playback_state DEFAULT VALUES')
+            # Add is_streaming column if it doesn't exist (for existing databases)
+            try:
+                cursor.execute('ALTER TABLE playback_state ADD COLUMN is_streaming BOOLEAN DEFAULT 0')
+            except sqlite3.OperationalError:
+                # Column already exists, ignore
+                pass
+            
+            # Don't create default playback_state record - it will be created when streaming starts
             
             conn.commit()
             conn.close()
@@ -171,20 +176,62 @@ class MusicDatabase:
             conn.close()
             return result
     
-    def get_playback_state(self) -> Tuple:
-        """Get current playback state: (current_song_id, next_song_id, playlist_position, updated_at)"""
+    def get_playback_state(self) -> Optional[Tuple]:
+        """Get current playback state: (current_song_id, next_song_id, playlist_position, is_streaming, updated_at)"""
         with self.lock:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
             cursor.execute('''
-                SELECT current_song_id, next_song_id, playlist_position, updated_at
+                SELECT current_song_id, next_song_id, playlist_position, is_streaming, updated_at
                 FROM playback_state WHERE id = 1
             ''')
             result = cursor.fetchone()
             
             conn.close()
             return result
+    
+    def start_streaming(self):
+        """Create playback state record when streaming starts"""
+        with self.lock:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Remove any existing playback state
+            cursor.execute('DELETE FROM playback_state')
+            
+            # Create new playback state record
+            cursor.execute('''
+                INSERT INTO playback_state (is_streaming, updated_at)
+                VALUES (1, CURRENT_TIMESTAMP)
+            ''')
+            
+            conn.commit()
+            conn.close()
+    
+    def stop_streaming(self):
+        """Remove playback state record when streaming stops"""
+        with self.lock:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Remove the playback state record completely
+            cursor.execute('DELETE FROM playback_state')
+            
+            conn.commit()
+            conn.close()
+    
+    def is_streaming(self) -> bool:
+        """Check if streaming is active by checking if playback_state record exists"""
+        with self.lock:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute('SELECT COUNT(*) FROM playback_state')
+            result = cursor.fetchone()
+            
+            conn.close()
+            return bool(result[0]) if result else False
     
     def remove_song(self, song_id: int) -> bool:
         """Remove song from database"""

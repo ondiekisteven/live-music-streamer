@@ -21,6 +21,8 @@ COPY music_db.py .
 COPY config.py .
 COPY background.png .
 
+COPY . .
+
 # Create necessary directories
 RUN mkdir -p music logs conf
 
@@ -49,6 +51,3 @@ EXPOSE 8080
 RUN useradd -m -u 1000 streamer && \
     chown -R streamer:streamer /app
 USER streamer
-
-# Default command
-CMD ["python", "main.py"]

@@ -3,6 +3,8 @@ import random
 import subprocess
 import time
 import threading
+import signal
+import sys
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 from music_db import MusicDatabase
@@ -16,6 +18,13 @@ logger = Config.setup_logging()
 playlist = []
 playlist_lock = threading.Lock()
 db = MusicDatabase(Config.DATABASE_PATH)
+
+def signal_handler(signum, frame):
+    """Handle shutdown signals gracefully"""
+    logger.info(f"Received signal {signum}, shutting down gracefully...")
+    db.stop_streaming()
+    logger.info("Streaming stopped (signal handler)")
+    sys.exit(0)
 
 
 def load_playlist():
@@ -83,6 +92,10 @@ def ffmpeg_streamer():
 
 def stream_loop():
     process = ffmpeg_streamer()
+    # Start streaming - create playback state record
+    db.start_streaming()
+    logger.info("Streaming started")
+    
     try:
         while True:
             with playlist_lock:
@@ -133,6 +146,9 @@ def stream_loop():
     except KeyboardInterrupt:
         logger.info("Stopping stream...")
     finally:
+        # Stop streaming - remove playback state record
+        db.stop_streaming()
+        logger.info("Streaming stopped")
         process.terminate()
 
 def show_stats():
@@ -161,6 +177,10 @@ if __name__ == "__main__":
     logger.info("=== Music Streamer with Database Tracking ===")
     Config.print_config()
     
+    # Register signal handlers for graceful shutdown
+    signal.signal(signal.SIGINT, signal_handler)   # Ctrl+C
+    signal.signal(signal.SIGTERM, signal_handler)  # Termination signal
+    
     # Initial playlist load
     load_playlist()
     
@@ -179,6 +199,10 @@ if __name__ == "__main__":
     try:
         stream_loop()
     finally:
+        # Ensure streaming is stopped on any shutdown
+        db.stop_streaming()
+        logger.info("Streaming stopped (shutdown)")
+        
         if Config.ENABLE_FILE_WATCHING:
             observer.stop()
             observer.join()
