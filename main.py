@@ -6,25 +6,28 @@ import threading
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 from music_db import MusicDatabase
+from config import Config
 
-MUSIC_DIR = "music"
-BACKGROUND = "background.png"
-YOUTUBE_URL = "rtmp://a.rtmp.youtube.com/live2/3ses-sevb-f6w3-73qc-2683"
+# Initialize configuration and logging
+if not Config.validate():
+    exit(1)
 
+logger = Config.setup_logging()
 playlist = []
 playlist_lock = threading.Lock()
-db = MusicDatabase()
+db = MusicDatabase(Config.DATABASE_PATH)
 
 
 def load_playlist():
     """Shuffle and reload music files, sync with database"""
-    files = [os.path.join(MUSIC_DIR, f) for f in os.listdir(MUSIC_DIR)
-             if f.lower().endswith((".mp3", ".wav", ".flac", ".aac"))]
+    files = [os.path.join(Config.MUSIC_DIR, f) for f in os.listdir(Config.MUSIC_DIR)
+             if f.lower().endswith(Config.SUPPORTED_EXTENSIONS)]
     
     # Clean up database - remove songs for files that no longer exist
-    removed_count = db.cleanup_missing_files()
-    if removed_count > 0:
-        print(f"[Database cleanup] Removed {removed_count} songs with missing files")
+    if Config.ENABLE_DB_CLEANUP:
+        removed_count = db.cleanup_missing_files()
+        if removed_count > 0:
+            logger.info(f"Database cleanup: Removed {removed_count} songs with missing files")
     
     # Add new songs to database
     added_count = 0
@@ -35,7 +38,7 @@ def load_playlist():
             added_count += 1
     
     if added_count > 0:
-        print(f"[Database sync] Added {added_count} new songs")
+        logger.info(f"Database sync: Added {added_count} new songs")
     
     # Shuffle files for playlist
     random.shuffle(files)
@@ -43,7 +46,7 @@ def load_playlist():
         playlist.clear()
         playlist.extend(files)
     
-    print(f"[Playlist updated] {len(files)} tracks loaded")
+    logger.info(f"Playlist updated: {len(files)} tracks loaded")
 
 def update_text_files(now_song, next_song):
     with open("conf/now.txt", "w") as f:
@@ -55,8 +58,8 @@ class MusicWatcher(FileSystemEventHandler):
     def on_any_event(self, event):
         if event.is_directory:
             return
-        if event.src_path.lower().endswith((".mp3", ".wav", ".flac", ".aac")):
-            print(f"[File system event] {event.event_type}: {os.path.basename(event.src_path)}")
+        if event.src_path.lower().endswith(Config.SUPPORTED_EXTENSIONS):
+            logger.info(f"File system event: {event.event_type}: {os.path.basename(event.src_path)}")
             
             # Handle file removal
             if event.event_type == 'deleted':
@@ -65,33 +68,16 @@ class MusicWatcher(FileSystemEventHandler):
                     song_id = song_info[0]
                     song_title = song_info[2]
                     db.remove_song(song_id)
-                    print(f"[Database] Removed song: {song_title}")
+                    logger.info(f"Database: Removed song: {song_title}")
             
             # Reload playlist (this will sync database)
             load_playlist()
 
 #-loop 1 -i background.jpg ... -vf scale=1280:720 
 def ffmpeg_streamer():
-    """Main FFmpeg streamer process with overlays"""
-    ffmpeg_cmd = [
-        "ffmpeg",
-        "-re", "-f", "s16le", "-ar", "44100", "-ac", "2", "-i", "pipe:0",
-        "-loop", "1", "-i", BACKGROUND,
-        "-c:v", "libx264", "-preset", "veryfast", "-tune", "stillimage",
-        "-c:a", "aac", "-b:a", "128k",
-        "-shortest",
-        "-vf",
-        (
-            "scale=1280:720,format=yuv420p,"
-            # Bottom-left (current song)
-            "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-            "textfile=conf/now.txt:x=10:y=h-th-20:fontsize=28:fontcolor=white:borderw=2,"
-            # Bottom-right (next song)
-            "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-            "textfile=conf/next.txt:x=w-tw-10:y=h-th-20:fontsize=24:fontcolor=yellow:borderw=2"
-        ),
-        "-f", "flv", YOUTUBE_URL
-    ]
+    """Main FFmpeg streamer process"""
+    ffmpeg_cmd = Config.get_ffmpeg_stream_cmd()
+    logger.debug(f"FFmpeg command: {' '.join(ffmpeg_cmd)}")
     return subprocess.Popen(ffmpeg_cmd, stdin=subprocess.PIPE)
 
 
@@ -101,7 +87,7 @@ def stream_loop():
         while True:
             with playlist_lock:
                 if not playlist:
-                    time.sleep(5)
+                    time.sleep(Config.PLAYLIST_REFRESH_INTERVAL)
                     continue
                 songs = playlist.copy()
 
@@ -118,25 +104,22 @@ def stream_loop():
                 
                 db.set_current_song(song_id, next_song_id, i)
                 update_text_files(song_title, next_song_info[2] if next_song_info else "Unknown")
-                print(f"[Now playing] {song_title}")
-                if song_id:
-                    print(f"[Database] Song ID: {song_id}, Position: {i+1}/{len(songs)}")
                 
-                decode_cmd = [
-                    "ffmpeg", "-i", song,
-                    "-f", "s16le", "-ar", "44100", "-ac", "2", "pipe:1",
-                    "-loglevel", "quiet"
-                ]
+                logger.info(f"Now playing: {song_title}")
+                if song_id:
+                    logger.debug(f"Database: Song ID: {song_id}, Position: {i+1}/{len(songs)}")
+                
+                decode_cmd = Config.get_ffmpeg_decode_cmd(song)
                 decoder = subprocess.Popen(decode_cmd, stdout=subprocess.PIPE)
 
                 while True:
-                    chunk = decoder.stdout.read(4096)
+                    chunk = decoder.stdout.read(Config.AUDIO_CHUNK_SIZE)
                     if not chunk:
                         break
                     try:
                         process.stdin.write(chunk)
                     except BrokenPipeError:
-                        print("[FFmpeg crashed] Restarting...")
+                        logger.error("FFmpeg crashed: Restarting...")
                         process.terminate()
                         process = ffmpeg_streamer()
                         break
@@ -146,33 +129,37 @@ def stream_loop():
                 # Mark song as played in database
                 if song_id:
                     db.update_song_played(song_id)
-                    print(f"[Database] Marked '{song_title}' as played")
+                    logger.info(f"Database: Marked '{song_title}' as played")
     except KeyboardInterrupt:
-        print("Stopping stream...")
+        logger.info("Stopping stream...")
     finally:
         process.terminate()
 
 def show_stats():
     """Display database statistics"""
+    if not Config.ENABLE_DB_STATS:
+        return
+        
     stats = db.get_stats()
-    print("\n=== Music Database Statistics ===")
-    print(f"Total songs: {stats['total_songs']}")
-    print(f"Total plays: {stats['total_plays']}")
+    logger.info("=== Music Database Statistics ===")
+    logger.info(f"Total songs: {stats['total_songs']}")
+    logger.info(f"Total plays: {stats['total_plays']}")
     if stats['most_played']:
-        print(f"Most played: {stats['most_played']} ({stats['most_played_count']} times)")
+        logger.info(f"Most played: {stats['most_played']} ({stats['most_played_count']} times)")
     
     # Show current playback state
     current_song = db.get_current_song()
     next_song = db.get_next_song()
     
     if current_song:
-        print(f"\nCurrently playing: {current_song[2]}")
+        logger.info(f"Currently playing: {current_song[2]}")
     if next_song:
-        print(f"Next up: {next_song[2]}")
-    print("=" * 35)
+        logger.info(f"Next up: {next_song[2]}")
+    logger.info("=" * 35)
 
 if __name__ == "__main__":
-    print("=== Music Streamer with Database Tracking ===")
+    logger.info("=== Music Streamer with Database Tracking ===")
+    Config.print_config()
     
     # Initial playlist load
     load_playlist()
@@ -181,16 +168,20 @@ if __name__ == "__main__":
     show_stats()
 
     # Start watchdog observer
-    event_handler = MusicWatcher()
-    observer = Observer()
-    observer.schedule(event_handler, MUSIC_DIR, recursive=False)
-    observer.start()
+    if Config.ENABLE_FILE_WATCHING:
+        event_handler = MusicWatcher()
+        observer = Observer()
+        observer.schedule(event_handler, Config.MUSIC_DIR, recursive=False)
+        observer.start()
+        logger.info(f"File watching enabled for: {Config.MUSIC_DIR}")
 
     # Start streaming loop
     try:
         stream_loop()
     finally:
-        observer.stop()
-        observer.join()
-        print("\n=== Final Statistics ===")
+        if Config.ENABLE_FILE_WATCHING:
+            observer.stop()
+            observer.join()
+        logger.info("=== Final Statistics ===")
         show_stats()
+        logger.info("Application shutdown complete")

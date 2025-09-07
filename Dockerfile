@@ -18,15 +18,29 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application files
 COPY main.py .
 COPY music_db.py .
+COPY config.py .
 COPY background.png .
 
-# Create music directory
-RUN mkdir -p music
+# Create necessary directories
+RUN mkdir -p music logs conf
 
-# Set environment variables
+# Set environment variables with defaults
 ENV MUSIC_DIR=/app/music
-ENV BACKGROUND=/app/background.png
+ENV BACKGROUND_IMAGE=/app/background.png
+ENV DATABASE_PATH=/app/music_stream.db
+ENV LOGS_DIR=/app/logs
 ENV YOUTUBE_URL=""
+ENV VIDEO_WIDTH=1280
+ENV VIDEO_HEIGHT=720
+ENV AUDIO_SAMPLE_RATE=44100
+ENV AUDIO_CHANNELS=2
+ENV AUDIO_BITRATE=128k
+ENV LOG_LEVEL=INFO
+ENV LOG_TO_CONSOLE=true
+ENV LOG_TO_FILE=true
+ENV ENABLE_FILE_WATCHING=true
+ENV ENABLE_DB_CLEANUP=true
+ENV ENABLE_DB_STATS=true
 
 # Expose port (if needed for future web interface)
 EXPOSE 8080
