@@ -4,3 +4,4 @@ __pycache__
 logs/
 data/
 *.mp4
+conf

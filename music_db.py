@@ -3,11 +3,12 @@ import os
 import threading
 from datetime import datetime
 from typing import List, Optional, Tuple
+from config import Config
 
 class MusicDatabase:
     """SQLite database helper for music streaming application"""
     
-    def __init__(self, db_path: str = "data/music_stream.db"):
+    def __init__(self, db_path: str = os.path.join(Config.BASE_DIR, "data/music_stream.db")):
         self.db_path = db_path
         self.lock = threading.Lock()
         self._init_database()
@@ -246,6 +247,133 @@ class MusicDatabase:
             conn.close()
             return deleted
     
+
+    def advance_playback(self, increment_play_count=False):
+        """
+        Promote next -> current, optionally increment play_count for new current,
+        select a new random next (excluding current), and return (current, next).
+
+        Returns:
+        (current_row, next_row) where each is a dict: {'id','file_path','title'}
+        Either may be None if no song is available.
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            # Ensure atomicity
+            conn.execute("BEGIN IMMEDIATE")
+
+            conn.execute(
+                "INSERT OR IGNORE INTO playback_state (id, is_streaming) VALUES (1, 0)"
+            )
+
+            ps = conn.execute(
+                "SELECT current_song_id, next_song_id FROM playback_state WHERE id = 1"
+            ).fetchone()
+            current_id = ps["current_song_id"] if ps else None
+            next_id = ps["next_song_id"] if ps else None
+
+            # Case A: first-run, both NULL -> choose two random songs (or one if only one)
+            if not current_id and not next_id:
+                rows = conn.execute(
+                    "SELECT id, file_path, title FROM songs ORDER BY RANDOM() LIMIT 2"
+                ).fetchall()
+                if not rows:
+                    conn.commit()
+                    return None, None  # no songs at all
+
+                if len(rows) == 1:
+                    cur_row = rows[0]
+                    next_row = rows[0]
+                else:
+                    cur_row = rows[0]
+                    next_row = rows[1]
+
+                conn.execute(
+                    "UPDATE playback_state SET current_song_id = ?, next_song_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1",
+                    (cur_row["id"], next_row["id"]),
+                )
+
+                conn.execute(
+                    "UPDATE songs SET play_count = play_count + 1, last_played = CURRENT_TIMESTAMP WHERE id = ?",
+                    (cur_row["id"],),
+                )
+
+            else:
+                # Case B: normal promotion
+                # If there is no next_id (weird case), pick a random next that isn't current
+                if next_id is None:
+                    row = conn.execute(
+                        "SELECT id FROM songs WHERE id != ? ORDER BY RANDOM() LIMIT 1", (current_id,)
+                    ).fetchone()
+                    if row:
+                        next_id = row["id"]
+                        conn.execute(
+                            "UPDATE playback_state SET next_song_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1",
+                            (next_id,),
+                        )
+                    else: 
+                        conn.execute(
+                            "UPDATE playback_state SET next_song_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1",
+                            (current_id,),
+                        )
+                        next_id = current_id
+
+                # Promote next -> current
+                conn.execute(
+                    "UPDATE playback_state SET current_song_id = next_song_id, updated_at = CURRENT_TIMESTAMP WHERE id = 1"
+                )
+
+                # Get the newly promoted current ID
+                new_current_id = conn.execute(
+                    "SELECT current_song_id FROM playback_state WHERE id = 1"
+                ).fetchone()[0]
+
+                if increment_play_count:
+                    conn.execute(
+                        "UPDATE songs SET play_count = play_count + 1, last_played = CURRENT_TIMESTAMP WHERE id = ?",
+                        (new_current_id,),
+                    )
+
+                # Pick a new random next (exclude the new current)
+                row = conn.execute(
+                    "SELECT id FROM songs WHERE id != ? ORDER BY RANDOM() LIMIT 1", (new_current_id,)
+                ).fetchone()
+                if row:
+                    conn.execute(
+                        "UPDATE playback_state SET next_song_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1",
+                        (row["id"],),
+                    )
+                else:
+                    # no other songs, keep next_song_id = new_current_id (or NULL)
+                    conn.execute(
+                        "UPDATE playback_state SET next_song_id = current_song_id, updated_at = CURRENT_TIMESTAMP WHERE id = 1"
+                    )
+
+            conn.commit()
+
+            # Fetch and return the full current and next rows (file_path/title)
+            current = conn.execute(
+                "SELECT s.id, s.file_path, s.title FROM playback_state ps JOIN songs s ON ps.current_song_id = s.id WHERE ps.id = 1"
+            ).fetchone()
+            nxt = conn.execute(
+                "SELECT s.id, s.file_path, s.title FROM playback_state ps JOIN songs s ON ps.next_song_id = s.id WHERE ps.id = 1"
+            ).fetchone()
+
+            def row_to_dict(r):
+                res  = {"id": r["id"], "file_path": r["file_path"], "title": r["title"]} if r else None
+                print(f"ROW: {res}")
+                return res
+            
+            return row_to_dict(current), row_to_dict(nxt)
+
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+
     def cleanup_missing_files(self) -> int:
         """Remove songs from database where files no longer exist"""
         with self.lock:

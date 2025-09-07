@@ -14,6 +14,9 @@ class Config:
     # Base directory (where the application runs)
     BASE_DIR = Path(__file__).parent.absolute()
     
+    CURRENT_SONG_FILE = os.path.join(BASE_DIR, "conf/now.txt")
+    NEXT_SONG_FILE = os.path.join(BASE_DIR,"conf/next.txt")
+    
     # Music directory - where audio files are stored
     MUSIC_DIR = os.getenv('MUSIC_DIR', str(BASE_DIR / 'music'))
     
@@ -83,7 +86,7 @@ class Config:
     
     # Log format
     LOG_FORMAT = os.getenv('LOG_FORMAT', 
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        '%(asctime)s\t%(levelname)s\t[%(name)s:%(lineno)s]\t%(message)s')
     
     # Log file name
     LOG_FILENAME = os.getenv('LOG_FILENAME', 'music_streamer.log')
@@ -196,12 +199,12 @@ class Config:
                 f"scale={cls.VIDEO_WIDTH}:{cls.VIDEO_HEIGHT},format=yuv420p,"
                 # Bottom-left: current song
                 "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-                "textfile=conf/now.txt:reload=1:"
+                f"textfile={cls.CURRENT_SONG_FILE}:reload=1:"
                 "x=if(gt(tw\\,w*0.45-20)\\,10-mod(t*30\\,tw-(w*0.45-40))\\,10):"
                 "y=h-th-20:fontsize=28:fontcolor=white:borderw=2,"
                 # Bottom-right: next song
                 "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-                "textfile=conf/next.txt:reload=1:"
+                f"textfile={cls.NEXT_SONG_FILE}:reload=1:"
                 "x=if(gt(tw\\,w*0.45-20)\\,w*0.55+mod(t*30\\,tw-(w*0.45-40))\\,w-tw-10):"
                 "y=h-th-20:fontsize=24:fontcolor=yellow:borderw=2"
             ),

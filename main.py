@@ -50,18 +50,24 @@ def load_playlist():
         logger.info(f"Database sync: Added {added_count} new songs")
     
     # Shuffle files for playlist
-    random.shuffle(files)
+    # random.shuffle(files)
     with playlist_lock:
-        playlist.clear()
-        playlist.extend(files)
+        pass
+        # playlist.clear()
+        # playlist.extend(files)
     
     logger.info(f"Playlist updated: {len(files)} tracks loaded")
 
 def update_text_files(now_song, next_song):
-    with open("conf/now.txt", "w") as f:
+    with open(Config.CURRENT_SONG_FILE, "w") as f:
         f.write(f"Now Playing: {now_song}")
-    with open("conf/next.txt", "w") as f:
+    with open(Config.NEXT_SONG_FILE, "w") as f:
         f.write(f"Next: {next_song}")
+
+def save_playlist_to_file(playlist):
+    with open("conf/playlist.txt", "w") as f:
+        for song in playlist:
+            f.write(song + "\n")
 
 class MusicWatcher(FileSystemEventHandler):
     def on_any_event(self, event):
@@ -92,64 +98,60 @@ def ffmpeg_streamer():
 
 def stream_loop():
     process = ffmpeg_streamer()
-    # Start streaming - create playback state record
     db.start_streaming()
     logger.info("Streaming started")
-    
+
     try:
         while True:
-            with playlist_lock:
-                if not playlist:
-                    time.sleep(Config.PLAYLIST_REFRESH_INTERVAL)
-                    continue
-                songs = playlist.copy()
+            # Promote next → current, increment play count, and select a new next
+            current_song, next_song = db.advance_playback()  
+            # current_song and next_song are (id, file_path, title) tuples
 
-            for i, song in enumerate(songs):
-                # Get song info from database
-                song_info = db.get_song_by_path(song)
-                song_id = song_info[0] if song_info else None
-                song_title = song_info[2] if song_info else os.path.basename(song)
-                
-                # Set current and next song in database
-                next_song = songs[i + 1] if i + 1 < len(songs) else songs[0]  # Loop back to start
-                next_song_info = db.get_song_by_path(next_song)
-                next_song_id = next_song_info[0] if next_song_info else None
-                
-                db.set_current_song(song_id, next_song_id, i)
-                update_text_files(song_title, next_song_info[2] if next_song_info else "Unknown")
-                
-                logger.info(f"Now playing: {song_title}")
-                if song_id:
-                    logger.debug(f"Database: Song ID: {song_id}, Position: {i+1}/{len(songs)}")
-                
-                decode_cmd = Config.get_ffmpeg_decode_cmd(song)
-                decoder = subprocess.Popen(decode_cmd, stdout=subprocess.PIPE)
+            if not current_song:
+                logger.warning("No song available to play. Retrying...")
+                time.sleep(Config.PLAYLIST_REFRESH_INTERVAL)
+                continue
 
-                while True:
-                    chunk = decoder.stdout.read(Config.AUDIO_CHUNK_SIZE)
-                    if not chunk:
-                        break
-                    try:
-                        process.stdin.write(chunk)
-                    except BrokenPipeError:
-                        logger.error("FFmpeg crashed: Restarting...")
-                        process.terminate()
-                        process = ffmpeg_streamer()
-                        break
+            song_id = current_song["id"]
+            file_path = current_song["file_path"] 
+            song_title = current_song["title"]
+            next_song_title = next_song["title"] if next_song else "Unknown"
 
-                decoder.wait()
-                
-                # Mark song as played in database
-                if song_id:
-                    db.update_song_played(song_id)
-                    logger.info(f"Database: Marked '{song_title}' as played")
+            update_text_files(song_title, next_song_title)
+            logger.info(f"Now playing: {song_title}")
+            if song_id:
+                logger.debug(f"Database: Song ID: {song_id}")
+
+            decode_cmd = Config.get_ffmpeg_decode_cmd(file_path)
+            decoder = subprocess.Popen(decode_cmd, stdout=subprocess.PIPE)
+
+            while True:
+                chunk = decoder.stdout.read(Config.AUDIO_CHUNK_SIZE)
+                if not chunk:
+                    break
+                try:
+                    process.stdin.write(chunk)
+                except BrokenPipeError:
+                    logger.error("FFmpeg crashed: Restarting...")
+                    process.terminate()
+                    process = ffmpeg_streamer()
+                    break
+
+            decoder.wait()
+
+            # Mark song as played (already bumped in advance_playback,
+            # but keep this if you want extra timestamping/consistency)
+            if song_id:
+                db.update_song_played(song_id)
+                logger.info(f"Database: Marked '{song_title}' as played")
+
     except KeyboardInterrupt:
         logger.info("Stopping stream...")
     finally:
-        # Stop streaming - remove playback state record
         db.stop_streaming()
         logger.info("Streaming stopped")
         process.terminate()
+
 
 def show_stats():
     """Display database statistics"""
