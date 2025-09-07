@@ -7,7 +7,7 @@ from typing import List, Optional, Tuple
 class MusicDatabase:
     """SQLite database helper for music streaming application"""
     
-    def __init__(self, db_path: str = "music_stream.db"):
+    def __init__(self, db_path: str = "data/music_stream.db"):
         self.db_path = db_path
         self.lock = threading.Lock()
         self._init_database()

@@ -46,9 +46,9 @@ def load_playlist():
     print(f"[Playlist updated] {len(files)} tracks loaded")
 
 def update_text_files(now_song, next_song):
-    with open("now.txt", "w") as f:
+    with open("conf/now.txt", "w") as f:
         f.write(f"Now Playing: {now_song}")
-    with open("next.txt", "w") as f:
+    with open("conf/next.txt", "w") as f:
         f.write(f"Next: {next_song}")
 
 class MusicWatcher(FileSystemEventHandler):
@@ -85,10 +85,10 @@ def ffmpeg_streamer():
             "scale=1280:720,format=yuv420p,"
             # Bottom-left (current song)
             "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-            "textfile=now.txt:x=10:y=h-th-20:fontsize=28:fontcolor=white:borderw=2,"
+            "textfile=conf/now.txt:x=10:y=h-th-20:fontsize=28:fontcolor=white:borderw=2,"
             # Bottom-right (next song)
             "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-            "textfile=next.txt:x=w-tw-10:y=h-th-20:fontsize=24:fontcolor=yellow:borderw=2"
+            "textfile=conf/next.txt:x=w-tw-10:y=h-th-20:fontsize=24:fontcolor=yellow:borderw=2"
         ),
         "-f", "flv", YOUTUBE_URL
     ]
