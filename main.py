@@ -133,6 +133,7 @@ def stream_loop():
                     break
                 try:
                     process.stdin.write(chunk)
+                    restarting = False
                 except BrokenPipeError:
                     logger.error("FFmpeg crashed: Restarting...")
                     process.terminate()
