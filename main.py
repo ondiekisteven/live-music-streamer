@@ -19,6 +19,8 @@ playlist = []
 playlist_lock = threading.Lock()
 db = MusicDatabase(Config.DATABASE_PATH)
 
+restarting = False
+
 def signal_handler(signum, frame):
     """Handle shutdown signals gracefully"""
     logger.info(f"Received signal {signum}, shutting down gracefully...")
@@ -135,9 +137,13 @@ def stream_loop():
                     logger.error("FFmpeg crashed: Restarting...")
                     process.terminate()
                     process = ffmpeg_streamer()
+                    restarting = True
                     break
-
-            decoder.wait()
+                except: 
+                    exit(1)
+            
+            if not restarting:
+                decoder.wait()
 
             # Mark song as played (already bumped in advance_playback,
             # but keep this if you want extra timestamping/consistency)

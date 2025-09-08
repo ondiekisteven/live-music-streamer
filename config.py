@@ -186,7 +186,6 @@ class Config:
     
     @classmethod
     def get_ffmpeg_stream_cmd(cls) -> list:
-        """Get FFmpeg streaming command with overlays"""
         return [
             cls.FFMPEG_PATH,
             "-re", "-f", cls.AUDIO_FORMAT, "-ar", str(cls.AUDIO_SAMPLE_RATE),
@@ -208,7 +207,13 @@ class Config:
                 "x=if(gt(tw\\,w*0.45-20)\\,w*0.55+mod(t*30\\,tw-(w*0.45-40))\\,w-tw-10):"
                 "y=h-th-20:fontsize=24:fontcolor=yellow:borderw=2"
             ),
-            "-f", "flv", cls.YOUTUBE_URL
+            "-f", "flv",
+            "-reconnect", "1",
+            "-reconnect_streamed", "1",
+            "-reconnect_delay_max", "8",
+            "-reconnect_on_network_error", "1",
+            cls.YOUTUBE_URL
+
         ]
 
     
