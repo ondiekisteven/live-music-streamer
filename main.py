@@ -141,6 +141,7 @@ def stream_loop():
                     restarting = True
                     break
                 except: 
+                    logger.error("EXITING...")
                     exit(1)
             
             if not restarting:

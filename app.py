@@ -1,18 +1,19 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, Depends
+from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
-from typing import Optional, List
+from jose import jwt, JWTError
+from typing import List
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer, OAuth2PasswordRequestForm
 import os
 import sys
-import sqlite3
-import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
+
+from schemas import *
 
 # Add the ffmpeg directory to the path to import modules
 sys.path.append(str(Path(__file__).parent.parent / "ffmpeg"))
 
+from auth import create_access_token, verify_password
 from music_db import MusicDatabase
 from config import Config
 
@@ -29,41 +30,33 @@ app.add_middleware(
 
 # Initialize database
 db = MusicDatabase(Config.DATABASE_PATH)
+security = HTTPBearer()
 
-# Pydantic models
-class SongInfo(BaseModel):
-    id: int
-    file_path: str
-    title: str
-    duration_seconds: Optional[int]
-    last_played: Optional[str]
-    play_count: int
-    created_at: str
 
-class CurrentStatus(BaseModel):
-    current_song: Optional[SongInfo]
-    next_song: Optional[SongInfo]
-    playlist_position: int
-    total_songs: int
-    is_streaming: bool
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(token, Config.SECRET_KEY, algorithms=[Config.ALGORITHM])
+        username: str = payload.get("sub", None)
+        if username is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication token",
+            )
+        return username
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication token",
+        )
 
-class Stats(BaseModel):
-    total_songs: int
-    total_plays: int
-    most_played: Optional[str]
-    most_played_count: int
-
-class UploadResponse(BaseModel):
-    message: str
-    filename: str
-    song_id: int
 
 @app.get("/")
 async def root():
-    return {"message": "Music Streamer API", "version": "1.0.0"}
+    return {"message": "Music Streamer API", "version": "1.0.2"}
 
 @app.get("/api/status", response_model=CurrentStatus)
-async def get_status():
+async def get_status(username: str = Depends(get_current_user)):
     """Get current streaming status"""
     try:
         # Get current and next song
@@ -108,7 +101,7 @@ async def get_status():
         raise HTTPException(status_code=500, detail=f"Error getting status: {str(e)}")
 
 @app.get("/api/songs", response_model=List[SongInfo])
-async def get_all_songs():
+async def get_all_songs(username: str = Depends(get_current_user)):
     """Get all songs in the database"""
     try:
         songs_data = db.get_all_songs()
@@ -128,7 +121,7 @@ async def get_all_songs():
         raise HTTPException(status_code=500, detail=f"Error getting songs: {str(e)}")
 
 @app.get("/api/stats", response_model=Stats)
-async def get_stats():
+async def get_stats(username: str = Depends(get_current_user)):
     """Get database statistics"""
     try:
         stats = db.get_stats()
@@ -142,7 +135,7 @@ async def get_stats():
         raise HTTPException(status_code=500, detail=f"Error getting stats: {str(e)}")
 
 @app.post("/api/upload", response_model=UploadResponse)
-async def upload_music(file: UploadFile = File(...)):
+async def upload_music(file: UploadFile = File(...), username: str = Depends(get_current_user)):
     """Upload a new music file"""
     try:
         # Validate file extension
@@ -188,7 +181,7 @@ async def upload_music(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
 
 @app.delete("/api/songs/{song_id}")
-async def delete_song(song_id: int):
+async def delete_song(song_id: int, username: str = Depends(get_current_user)):
     """Delete a song from database and filesystem"""
     try:
         # Get song info first
@@ -215,9 +208,32 @@ async def delete_song(song_id: int):
         raise HTTPException(status_code=500, detail=f"Error deleting song: {str(e)}")
 
 @app.get("/api/health")
-async def health_check():
+async def health_check(username: str = Depends(get_current_user)):
     """Health check endpoint"""
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
+
+@app.post("/api/register")
+def register(user: UserRegister):
+    try:
+        db.register_user(username=user.username, password=user.password)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Username already exists")
+    return {"message": "User registered"}
+
+
+@app.post("/api/login")
+def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    user = db.get_user(form_data.username)
+    print(f"USER: {user}")
+    if not user or not verify_password(form_data.password, user[2]):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    token = create_access_token(
+        data={"sub": user[1]},
+        expires_delta=timedelta(minutes=30)
+    )
+    return {"access_token": token, "token_type": "bearer"}
+
 
 if __name__ == "__main__":
     import uvicorn

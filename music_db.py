@@ -3,6 +3,7 @@ import os
 import threading
 from datetime import datetime
 from typing import List, Optional, Tuple
+from auth import hash_password
 from config import Config
 
 class MusicDatabase:
@@ -46,6 +47,15 @@ class MusicDatabase:
                     CHECK (id = 1)
                 )
             ''')
+            
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT UNIQUE NOT NULL,
+                    password TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
             
             # Add is_streaming column if it doesn't exist (for existing databases)
             try:
@@ -198,14 +208,15 @@ class MusicDatabase:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
-            # Remove any existing playback state
-            cursor.execute('DELETE FROM playback_state')
-            
-            # Create new playback state record
+            # update existing playback state
             cursor.execute('''
-                INSERT INTO playback_state (is_streaming, updated_at)
-                VALUES (1, CURRENT_TIMESTAMP)
+                INSERT INTO playback_state (id, is_streaming, updated_at)
+                VALUES (1, 1, CURRENT_TIMESTAMP)
+                ON CONFLICT(id) DO UPDATE SET
+                    is_streaming = excluded.is_streaming,
+                    updated_at = excluded.updated_at
             ''')
+            
             
             conn.commit()
             conn.close()
@@ -217,7 +228,7 @@ class MusicDatabase:
             cursor = conn.cursor()
             
             # Remove the playback state record completely
-            cursor.execute('DELETE FROM playback_state')
+            cursor.execute('UPDATE playback_state SET is_streaming = 0 WHERE id = 1')
             
             conn.commit()
             conn.close()
@@ -423,3 +434,25 @@ class MusicDatabase:
                 'most_played': most_played[0] if most_played else None,
                 'most_played_count': most_played[1] if most_played else 0
             }
+
+    def register_user(self, username, password) -> dict: 
+        with self.lock:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute("INSERT INTO users (username, password) VALUES (?, ?)", 
+                       (username, hash_password(password)))
+            
+            conn.commit()
+            conn.close()
+    
+    def get_user(self, username):
+        with self.lock:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
+            user = cursor.fetchone()
+            conn.close()
+            
+            return user
