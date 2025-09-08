@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import List, Optional
 
 # Pydantic models
 class SongInfo(BaseModel):
@@ -28,6 +28,19 @@ class UploadResponse(BaseModel):
     message: str
     filename: str
     song_id: int
+
+class FileUploadResult(BaseModel):
+    filename: str
+    song_id: int
+    status: str
+    error: str = None
+
+class MultipleUploadResponse(BaseModel):
+    message: str
+    total_files: int
+    successful_uploads: int
+    failed_uploads: int
+    results: List[FileUploadResult]
 
 class UserRegister(BaseModel):
     username: str

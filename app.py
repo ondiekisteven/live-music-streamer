@@ -180,6 +180,84 @@ async def upload_music(file: UploadFile = File(...), username: str = Depends(get
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
 
+
+@app.post("/api/v2/upload", response_model=MultipleUploadResponse)
+async def upload_multiple_files(
+    files: List[UploadFile] = File(...), 
+    username: str = Depends(get_current_user)
+):
+    """Upload multiple music files"""
+    results = []
+    successful_uploads = 0
+    failed_uploads = 0
+    
+    # Create music directory if it doesn't exist
+    os.makedirs(Config.MUSIC_DIR, exist_ok=True)
+    
+    for file in files:
+        try:
+            # Validate file extension
+            file_extension = os.path.splitext(file.filename)[1].lower()
+            if file_extension not in Config.SUPPORTED_EXTENSIONS:
+                results.append(FileUploadResult(
+                    filename=file.filename,
+                    song_id=0,
+                    status="failed",
+                    error=f"Unsupported file type. Supported extensions: {Config.SUPPORTED_EXTENSIONS}"
+                ))
+                failed_uploads += 1
+                continue
+            
+            # Generate safe filename
+            safe_filename = file.filename.replace(" ", "_").replace("/", "_").replace("\\", "_")
+            file_path = os.path.join(Config.MUSIC_DIR, safe_filename)
+            
+            # Check if file already exists - fail if it does
+            if os.path.exists(file_path):
+                results.append(FileUploadResult(
+                    filename=file.filename,
+                    song_id=0,
+                    status="failed",
+                    error=f"File '{safe_filename}' already exists"
+                ))
+                failed_uploads += 1
+                continue
+
+            # Save file
+            with open(file_path, "wb") as buffer:
+                content = await file.read()
+                buffer.write(content)
+            
+            # Add to database
+            song_id = db.add_song(file_path)
+            
+            results.append(FileUploadResult(
+                filename=os.path.basename(file_path),
+                song_id=song_id,
+                status="success"
+            ))
+            successful_uploads += 1
+            
+        except Exception as e:
+            results.append(FileUploadResult(
+                filename=file.filename,
+                song_id=0,
+                status="failed",
+                error=str(e)
+            ))
+            failed_uploads += 1
+    
+    total_files = len(files)
+    
+    return MultipleUploadResponse(
+        message=f"Processed {total_files} files. {successful_uploads} successful, {failed_uploads} failed.",
+        total_files=total_files,
+        successful_uploads=successful_uploads,
+        failed_uploads=failed_uploads,
+        results=results
+    )
+
+
 @app.delete("/api/songs/{song_id}")
 async def delete_song(song_id: int, username: str = Depends(get_current_user)):
     """Delete a song from database and filesystem"""
