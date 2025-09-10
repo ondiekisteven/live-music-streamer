@@ -194,8 +194,8 @@ class Config:
     @classmethod
     def get_ffmpeg_stream_cmd(cls) -> list:
         return [
-            cls.FFMPEG_PATH,
-            "-re", "-f", cls.AUDIO_FORMAT, "-ar", str(cls.AUDIO_SAMPLE_RATE),
+            cls.FFMPEG_PATH, 
+            "-re", "-thread_queue_size", "1024", "-f", cls.AUDIO_FORMAT, "-ar", str(cls.AUDIO_SAMPLE_RATE),
             "-ac", str(cls.AUDIO_CHANNELS), "-i", "pipe:0",
             "-loop", "1", "-i", cls.BACKGROUND_IMAGE,
             "-c:v", "libx264", "-preset", cls.VIDEO_PRESET, "-tune", cls.VIDEO_TUNE,
@@ -207,12 +207,12 @@ class Config:
                 "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
                 f"textfile={cls.CURRENT_SONG_FILE}:reload=1:"
                 "x=if(gt(tw\\,w*0.45-20)\\,10-mod(t*30\\,tw-(w*0.45-40))\\,10):"
-                "y=h-th-20:fontsize=28:fontcolor=white:borderw=2,"
+                "y=h-th-20:fontsize=18:fontcolor=white:borderw=2,"
                 # Bottom-right: next song
                 "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
                 f"textfile={cls.NEXT_SONG_FILE}:reload=1:"
                 "x=if(gt(tw\\,w*0.45-20)\\,w*0.55+mod(t*30\\,tw-(w*0.45-40))\\,w-tw-10):"
-                "y=h-th-20:fontsize=24:fontcolor=yellow:borderw=2"
+                "y=h-th-20:fontsize=18:fontcolor=yellow:borderw=2"
             ),
             "-f", "flv",
             "-reconnect", "1",
@@ -222,10 +222,34 @@ class Config:
             cls.YOUTUBE_URL
 
         ]
-
-    
+        
     @classmethod
-    def get_ffmpeg_decode_cmd(cls, input_file: str) -> list:
+    def get_ffmpeg_youtube_stream_cmd(cls, input_source: str = "pipe:0") -> list:
+        return [
+            cls.FFMPEG_PATH,
+            "-re", "-thread_queue_size", "1024", "-i", input_source, 
+            "-loop", "1", "-i", cls.BACKGROUND_IMAGE,
+            "-c:v", "libx264", "-preset", cls.VIDEO_PRESET, "-tune", cls.VIDEO_TUNE,
+            "-b:v", "2500k",
+            "-c:a", "aac", "-b:a", cls.AUDIO_BITRATE,
+            "-shortest",
+            "-vf", (
+                f"scale={cls.VIDEO_WIDTH}:{cls.VIDEO_HEIGHT},format=yuv420p,"
+                "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
+                f"textfile={cls.CURRENT_SONG_FILE}:reload=1:"
+                "x=if(gt(tw\\,w*0.45-20)\\,10-mod(t*30\\,tw-(w*0.45-40))\\,10):"
+                "y=h-th-20:fontsize=28:fontcolor=white:borderw=2,"
+                "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
+                f"textfile={cls.NEXT_SONG_FILE}:reload=1:"
+                "x=if(gt(tw\\,w*0.45-20)\\,w*0.55+mod(t*30\\,tw-(w*0.45-40))\\,w-tw-10):"
+                "y=h-th-20:fontsize=24:fontcolor=yellow:borderw=2"
+            ),
+            "-f", "flv",
+            cls.YOUTUBE_URL
+        ]
+
+    @classmethod
+    def get_ffmpeg_file_decode_cmd(cls, input_file: str) -> list:
         """Get FFmpeg decode command for a file"""
         return [
             cls.FFMPEG_PATH, "-i", input_file,

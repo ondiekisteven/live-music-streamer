@@ -1,0 +1,19 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+    
+        {
+            "name": "ffmpeg",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "env": {
+                "YOUTUBE_URL": "rtmp://a.rtmp.youtube.com/live2/4f28-fgx3-hw6c-8fj7-cd59"
+            }
+        }
+    ]
+}

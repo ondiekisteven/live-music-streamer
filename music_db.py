@@ -1,10 +1,15 @@
 import sqlite3
+import logging
 import os
 import threading
 from datetime import datetime
 from typing import List, Optional, Tuple
 from auth import hash_password
 from config import Config
+
+
+logger = logging.getLogger(__name__)
+
 
 class MusicDatabase:
     """SQLite database helper for music streaming application"""
@@ -57,14 +62,18 @@ class MusicDatabase:
                 )
             """)
             
-            # Add is_streaming column if it doesn't exist (for existing databases)
+            # MIGRATIONS
             try:
                 cursor.execute('ALTER TABLE playback_state ADD COLUMN is_streaming BOOLEAN DEFAULT 0')
-            except sqlite3.OperationalError:
-                # Column already exists, ignore
+            except sqlite3.OperationalError as x:
+                logger.exception(x)
                 pass
             
-            # Don't create default playback_state record - it will be created when streaming starts
+            try:
+                cursor.execute("ALTER TABLE songs ADD COLUMN source_type TEXT DEFAULT 'file'")
+            except sqlite3.OperationalError as x:
+                logger.exception(x)
+                pass
             
             conn.commit()
             conn.close()
@@ -365,14 +374,14 @@ class MusicDatabase:
 
             # Fetch and return the full current and next rows (file_path/title)
             current = conn.execute(
-                "SELECT s.id, s.file_path, s.title FROM playback_state ps JOIN songs s ON ps.current_song_id = s.id WHERE ps.id = 1"
+                "SELECT s.id, s.file_path, s.title, s.source_type FROM playback_state ps JOIN songs s ON ps.current_song_id = s.id WHERE ps.id = 1"
             ).fetchone()
             nxt = conn.execute(
-                "SELECT s.id, s.file_path, s.title FROM playback_state ps JOIN songs s ON ps.next_song_id = s.id WHERE ps.id = 1"
+                "SELECT s.id, s.file_path, s.title, s.source_type FROM playback_state ps JOIN songs s ON ps.next_song_id = s.id WHERE ps.id = 1"
             ).fetchone()
 
             def row_to_dict(r):
-                res  = {"id": r["id"], "file_path": r["file_path"], "title": r["title"]} if r else None
+                res  = {"id": r["id"], "file_path": r["file_path"], "title": r["title"], "source_type": r["source_type"]} if r else None
                 print(f"ROW: {res}")
                 return res
             
@@ -392,7 +401,7 @@ class MusicDatabase:
             cursor = conn.cursor()
             
             # Get all songs
-            cursor.execute('SELECT id, file_path FROM songs')
+            cursor.execute('SELECT id, file_path FROM songs WHERE source_type = "file"')
             songs = cursor.fetchall()
             
             deleted_count = 0

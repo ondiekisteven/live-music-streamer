@@ -10,7 +10,6 @@ from watchdog.events import FileSystemEventHandler
 from music_db import MusicDatabase
 from config import Config
 
-# Initialize configuration and logging
 if not Config.validate():
     exit(1)
 
@@ -98,6 +97,15 @@ def ffmpeg_streamer():
     return subprocess.Popen(ffmpeg_cmd, stdin=subprocess.PIPE)
 
 
+def get_youtube_direct_url(youtube_url: str) -> str:
+    result = subprocess.run(
+        ["yt-dlp", "-f", "bestaudio", "-g", youtube_url],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True, check=True
+    )
+    return result.stdout.strip()
+
+
 def stream_loop():
     process = ffmpeg_streamer()
     db.start_streaming()
@@ -117,6 +125,7 @@ def stream_loop():
             song_id = current_song["id"]
             file_path = current_song["file_path"] 
             song_title = current_song["title"]
+            source_type = current_song["source_type"]
             next_song_title = next_song["title"] if next_song else "Unknown"
 
             update_text_files(song_title, next_song_title)
@@ -124,31 +133,49 @@ def stream_loop():
             if song_id:
                 logger.debug(f"Database: Song ID: {song_id}")
 
-            decode_cmd = Config.get_ffmpeg_decode_cmd(file_path)
-            decoder = subprocess.Popen(decode_cmd, stdout=subprocess.PIPE)
+            if source_type == "file":
+                # decode local file and pipe into FFmpeg
+                decode_cmd = Config.get_ffmpeg_file_decode_cmd(file_path)
+                decoder = subprocess.Popen(decode_cmd, stdout=subprocess.PIPE)
 
-            while True:
-                chunk = decoder.stdout.read(Config.AUDIO_CHUNK_SIZE)
-                if not chunk:
-                    break
+                while True:
+                    chunk = decoder.stdout.read(Config.AUDIO_CHUNK_SIZE)
+                    if not chunk:
+                        break
+                    try:
+                        process.stdin.write(chunk)
+                        restarting = False
+                    except BrokenPipeError:
+                        logger.error("FFmpeg crashed: Restarting...")
+                        process.terminate()
+                        process = ffmpeg_streamer()
+                        restarting = True
+                        break
+                
+                if not restarting: 
+                    decoder.wait()
+
+            elif source_type == "youtube":
                 try:
-                    process.stdin.write(chunk)
-                    restarting = False
-                except BrokenPipeError:
-                    logger.error("FFmpeg crashed: Restarting...")
-                    process.terminate()
-                    process = ffmpeg_streamer()
-                    restarting = True
-                    break
-                except: 
-                    logger.error("EXITING...")
-                    exit(1)
-            
-            if not restarting:
-                decoder.wait()
+                    yt_proc = subprocess.Popen(
+                        ["yt-dlp", "-f", "bestaudio", "--no-part", "--no-playlist", "-o", "-", file_path],
+                        stdout=subprocess.PIPE
+                    )
 
-            # Mark song as played (already bumped in advance_playback,
-            # but keep this if you want extra timestamping/consistency)
+                    ffmpeg_cmd = Config.get_ffmpeg_youtube_stream_cmd("pipe:0")
+
+                    ffmpeg_proc = subprocess.Popen(ffmpeg_cmd, stdin=yt_proc.stdout)
+
+                    # Close yt_proc.stdout in parent so yt-dlp gets SIGPIPE if ffmpeg exits
+                    yt_proc.stdout.close()
+
+                    # Wait for ffmpeg to finish first
+                    ffmpeg_proc.wait()
+                    yt_proc.wait()
+                except Exception as x: 
+                    logger.exception(x)
+                    process.terminate
+
             if song_id:
                 db.update_song_played(song_id)
                 logger.info(f"Database: Marked '{song_title}' as played")
@@ -190,14 +217,11 @@ if __name__ == "__main__":
     # Register signal handlers for graceful shutdown
     signal.signal(signal.SIGINT, signal_handler)   # Ctrl+C
     signal.signal(signal.SIGTERM, signal_handler)  # Termination signal
-    
-    # Initial playlist load
+
     load_playlist()
-    
-    # Show initial stats
+
     show_stats()
 
-    # Start watchdog observer
     if Config.ENABLE_FILE_WATCHING:
         event_handler = MusicWatcher()
         observer = Observer()
@@ -205,7 +229,6 @@ if __name__ == "__main__":
         observer.start()
         logger.info(f"File watching enabled for: {Config.MUSIC_DIR}")
 
-    # Start streaming loop
     try:
         stream_loop()
     finally:
