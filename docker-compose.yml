@@ -1,0 +1,32 @@
+services:
+  streamer:
+    image: registry.gitlab.com/sondieki/ffmpeg:latest
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+    command: ["python", "main.py"]
+    user: root
+    # profiles:
+    #   - ffmpeg
+    environment:
+      - PYTHONPATH=/app
+      - DATABASE_PATH=/app/data/music_stream.db
+      - LOGS_DIR=/app/logs
+      - YOUTUBE_URL=rtmp://a.rtmp.youtube.com/live2/4f28-fgx3-hw6c-8fj7-cd59
+      - VIDEO_WIDTH=1280
+      - VIDEO_HEIGHT=720
+      - AUDIO_SAMPLE_RATE=44100
+      - AUDIO_CHANNELS=2
+      - AUDIO_BITRATE=128k
+      - LOG_LEVEL=INFO
+      - LOG_TO_CONSOLE=true
+      - LOG_TO_FILE=true
+      - ENABLE_FILE_WATCHING=true
+      - ENABLE_DB_CLEANUP=true
+      - ENABLE_DB_STATS=true
+    volumes:
+      # Mount the ffmpeg directory to access the database and music files
+      - ./data:/app/data
+      - /opt/streams/music:/app/music
+    restart: always
+
