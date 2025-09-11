@@ -1,3 +1,5 @@
+import logging
+import sqlite3
 from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from jose import jwt, JWTError
@@ -18,7 +20,7 @@ from music_db import MusicDatabase
 from config import Config
 
 app = FastAPI(title="Music Streamer API", version="1.0.0")
-
+logger = logging.getLogger(__name__)
 # CORS middleware for React frontend
 app.add_middleware(
     CORSMiddleware,
@@ -312,6 +314,23 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
     )
     return {"access_token": token, "token_type": "bearer"}
 
+@app.post("/api/youtube/add")
+def add_youtube_song(song: YouTubeSong, username: str = Depends(get_current_user)):
+    """Save a YouTube song link to the songs table"""
+
+    try:
+        db.save_youtube_link(song)
+
+        return {
+            "url": song.url,
+            "title": song.title,    
+            "source_type": "youtube"
+        }
+    except sqlite3.IntegrityError:
+        raise HTTPException(status_code=400, detail="Song already exists")
+    except Exception as e:
+        logger.exception(e)
+        raise HTTPException(status_code=500, detail='A server error occured. Try again later')
 
 if __name__ == "__main__":
     import uvicorn

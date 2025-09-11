@@ -46,3 +46,7 @@ class UserRegister(BaseModel):
     username: str
     password: str
 
+class YouTubeSong(BaseModel):
+    url: str
+    title: str
+    artist: str | None = None  # future use
