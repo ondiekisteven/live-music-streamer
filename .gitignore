@@ -6,3 +6,4 @@ data/
 *.mp4
 conf
 *.xlsx
+.vscode
