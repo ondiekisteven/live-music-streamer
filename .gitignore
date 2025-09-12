@@ -7,3 +7,5 @@ data/
 conf
 *.xlsx
 .vscode
+
+*background.png

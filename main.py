@@ -7,7 +7,7 @@ import signal
 import sys
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-from music_db import MusicDatabase
+from music_db import MusicDatabaseMysql as MusicDatabase
 from config import Config
 
 if not Config.validate():

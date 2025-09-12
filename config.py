@@ -120,6 +120,12 @@ class Config:
     # Enable database statistics logging
     ENABLE_DB_STATS = os.getenv('ENABLE_DB_STATS', 'true').lower() == 'true'
     
+    MYSQL_HOST = os.getenv('MYSQL_HOST')
+    MYSQL_USER = os.getenv('MYSQL_USER')
+    MYSQL_PASS = os.getenv('MYSQL_PASS')
+    MYSQL_DB = os.getenv('MYSQL_DB')
+    MYSQL_PORT = int(os.getenv('MYSQL_PORT', '3306'))
+    
     # =============================================================================
     # VALIDATION AND INITIALIZATION
     # =============================================================================

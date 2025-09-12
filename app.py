@@ -16,7 +16,7 @@ from schemas import *
 sys.path.append(str(Path(__file__).parent.parent / "ffmpeg"))
 
 from auth import create_access_token, verify_password
-from music_db import MusicDatabase
+from music_db import MusicDatabaseMysql as MusicDatabase
 from config import Config
 
 app = FastAPI(title="Music Streamer API", version="1.0.0")
@@ -75,9 +75,9 @@ async def get_status(username: str = Depends(get_current_user)):
                 file_path=current_song_data[1],
                 title=current_song_data[2],
                 duration_seconds=current_song_data[3],
-                last_played=current_song_data[4],
+                last_played=str(current_song_data[4]),
                 play_count=current_song_data[5],
-                created_at=current_song_data[6]
+                created_at=str(current_song_data[6])
             )
         
         next_song = None
@@ -87,9 +87,9 @@ async def get_status(username: str = Depends(get_current_user)):
                 file_path=next_song_data[1],
                 title=next_song_data[2],
                 duration_seconds=next_song_data[3],
-                last_played=next_song_data[4],
+                last_played=str(next_song_data[4]),
                 play_count=next_song_data[5],
-                created_at=next_song_data[6]
+                created_at=str(next_song_data[6])
             )
         
         return CurrentStatus(
@@ -114,9 +114,9 @@ async def get_all_songs(username: str = Depends(get_current_user)):
                 file_path=song_data[1],
                 title=song_data[2],
                 duration_seconds=song_data[3],
-                last_played=song_data[4],
+                last_played=str(song_data[4]),
                 play_count=song_data[5],
-                created_at=song_data[6]
+                created_at=str(song_data[6])
             ))
         return songs
     except Exception as e:
