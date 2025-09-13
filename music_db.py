@@ -496,6 +496,7 @@ class MusicDatabaseMysql:
             'database': Config.MYSQL_DB,
             'user': Config.MYSQL_USER,
             'password': Config.MYSQL_PASS,
+            'port': Config.MYSQL_PORT,
             'autocommit': False,
             'charset': 'utf8mb4'
         }
