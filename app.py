@@ -102,16 +102,15 @@ async def get_status(username: str = Depends(get_current_user)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error getting status: {str(e)}")
 
-@app.get("/api/songs", response_model=List[SongInfo])
+@app.get("/api/songs", response_model=List[SongInfoResp])
 async def get_all_songs(username: str = Depends(get_current_user)):
     """Get all songs in the database"""
     try:
         songs_data = db.get_all_songs()
         songs = []
         for song_data in songs_data:
-            songs.append(SongInfo(
+            songs.append(SongInfoResp(
                 id=song_data[0],
-                file_path=song_data[1],
                 title=song_data[2],
                 duration_seconds=song_data[3],
                 last_played=str(song_data[4]),

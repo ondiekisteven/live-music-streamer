@@ -11,6 +11,15 @@ class SongInfo(BaseModel):
     play_count: int
     created_at: str
 
+# Pydantic models
+class SongInfoResp(BaseModel):
+    id: int
+    title: str
+    duration_seconds: Optional[int]
+    last_played: Optional[str]
+    play_count: int
+    created_at: str
+    
 class CurrentStatus(BaseModel):
     current_song: Optional[SongInfo]
     next_song: Optional[SongInfo]

@@ -3,6 +3,7 @@ import logging
 import logging.handlers
 from pathlib import Path
 from typing import Optional
+from datetime import datetime
 
 class Config:
     """Configuration class for Music Streamer application"""
@@ -127,6 +128,14 @@ class Config:
     MYSQL_PORT = int(os.getenv('MYSQL_PORT', '3306'))
     
     # =============================================================================
+    # PLAY TIME
+    # =============================================================================
+    
+    MORNING_PLAY_TIME = int(os.getenv('MORNING_PLAY_TIME', '9'))
+    DAY_PLAY_TIME = int(os.getenv('DAY_PLAY_TIME', '15'))
+    EVENING_PLAY_TIME = int(os.getenv('EVENING_PLAY_TIME', '20'))
+    
+    # =============================================================================
     # VALIDATION AND INITIALIZATION
     # =============================================================================
     
@@ -196,6 +205,17 @@ class Config:
             logger.addHandler(file_handler)
         
         return logger
+    
+    @classmethod
+    def get_play_time(cls):
+        hour = datetime.now().hour
+        if hour < cls.MORNING_PLAY_TIME:
+            return 'morning'
+        if hour < cls.DAY_PLAY_TIME: 
+            return 'day'
+        if hour < cls.EVENING_PLAY_TIME:
+            return 'evening'
+        return 'night'
     
     @classmethod
     def get_ffmpeg_stream_cmd(cls) -> list:
