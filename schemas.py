@@ -58,4 +58,5 @@ class UserRegister(BaseModel):
 class YouTubeSong(BaseModel):
     url: str
     title: str
-    artist: str | None = None  # future use
+    artist: str | None = None
+    song_play_time: str | None = None

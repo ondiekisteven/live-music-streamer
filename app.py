@@ -10,6 +10,8 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import mysql
+
 from schemas import *
 
 # Add the ffmpeg directory to the path to import modules
@@ -325,7 +327,7 @@ def add_youtube_song(song: YouTubeSong, username: str = Depends(get_current_user
             "title": song.title,    
             "source_type": "youtube"
         }
-    except sqlite3.IntegrityError:
+    except mysql.connector.errors.IntegrityError:
         raise HTTPException(status_code=400, detail="Song already exists")
     except Exception as e:
         logger.exception(e)

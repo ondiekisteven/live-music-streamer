@@ -1076,12 +1076,9 @@ class MusicDatabaseMysql:
             cursor = conn.cursor()
             
             cursor.execute("""
-                INSERT INTO songs (file_path, title, source_type, artist)
-                VALUES (%s, %s, 'youtube', %s)
-                ON DUPLICATE KEY UPDATE 
-                    title = VALUES(title), 
-                    source_type = VALUES(source_type)
-            """, (song.url, song.title, song.artist))
+                INSERT INTO songs (file_path, title, source_type, artist, song_play_time)
+                VALUES (%s, %s, 'youtube', %s, %s)
+            """, (song.url, song.title, song.artist, song.song_play_time))
             conn.commit()
             
             return True
