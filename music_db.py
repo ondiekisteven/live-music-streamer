@@ -850,7 +850,7 @@ class MusicDatabaseMysql:
             if not current_id and not next_id:
                 cursor.execute(
                     "SELECT id, file_path, title, source_type FROM songs WHERE song_play_time = %s ORDER BY RAND() LIMIT 2",
-                    (Config.get_play_time())
+                    (Config.get_play_time(),)
                 )
                 rows = cursor.fetchall()
                 if not rows:
@@ -914,7 +914,7 @@ class MusicDatabaseMysql:
 
                 # Pick a new random next (exclude the new current)
                 cursor.execute(
-                    "SELECT id FROM songs WHERE id != %s AND song_play_time = %s ORDER BY RAND() LIMIT 1", (new_current_id, Config.get_play_time())
+                    "SELECT id FROM songs WHERE id != %s AND song_play_time = %s ORDER BY RAND() LIMIT 1", (new_current_id, Config.get_play_time(),)
                 )
                 row = cursor.fetchone()
                 if row:
@@ -1076,12 +1076,12 @@ class MusicDatabaseMysql:
             cursor = conn.cursor()
             
             cursor.execute("""
-                INSERT INTO songs (file_path, title, source_type)
-                VALUES (%s, %s, 'youtube')
+                INSERT INTO songs (file_path, title, source_type, artist)
+                VALUES (%s, %s, 'youtube', %s)
                 ON DUPLICATE KEY UPDATE 
                     title = VALUES(title), 
                     source_type = VALUES(source_type)
-            """, (song.url, song.title))
+            """, (song.url, song.title, song.artist))
             conn.commit()
             
             return True
