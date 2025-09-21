@@ -1,0 +1,65 @@
+import signal
+import subprocess
+from config import Config
+from main import signal_handler
+from music_db import MusicDatabaseMysql as MusicDatabase
+
+db = MusicDatabase(Config.DATABASE_PATH)
+
+def get_ffmpeg_stream_cmd() -> list:
+    return [
+        Config.FFMPEG_PATH,
+        "-re", "-thread_queue_size", "1024",
+        "-stream_loop", "-1", "-i", Config.BACKGROUND_VIDEO, 
+        "-f", "pulse", "-i", "audio_mix.monitor", 
+        "-filter_complex", "[0:a][1:a]amix=inputs=2:dropout_transition=2[outa]",
+        "-map", "0:V", "-map", "[outa]",
+        "-c:v", "libx264", "-preset", Config.VIDEO_PRESET, 
+        "-g", "60", "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", Config.AUDIO_BITRATE, "-b:v", Config.VIDEO_BITRATE, 
+        "-f", "flv",
+        "-reconnect", "1",
+        "-reconnect_streamed", "1",
+        "-reconnect_delay_max", "8",
+        "-reconnect_on_network_error", "1",
+        Config.YOUTUBE_URL
+    ]
+
+
+def main():
+    logger = Config.setup_logging()
+    logger.info("Streaming started")
+    
+    signal.signal(signal.SIGINT, signal_handler)  
+    signal.signal(signal.SIGTERM, signal_handler) 
+    ffmpeg_process = None
+    ffmpeg_cmd = get_ffmpeg_stream_cmd()
+    
+    try:
+        ffmpeg_process = subprocess.Popen(
+            ffmpeg_cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1
+        )
+        for line in ffmpeg_process.stdout:
+            logger.info(line.strip())
+        
+        ffmpeg_process.wait()
+        
+        if ffmpeg_process.returncode != 0:
+            logger.error(f"FFmpeg exited with code {ffmpeg_process.returncode}")
+            raise subprocess.CalledProcessError(ffmpeg_process.returncode, ffmpeg_cmd)
+        
+    finally:
+        # db.stop_streaming()
+        if ffmpeg_process:
+            ffmpeg_process.send_signal(signal.SIGKILL)
+        logger.info("Application shutdown complete")
+        logger.info("Application shutdown complete")
+
+
+if __name__ == '__main__': 
+    main()

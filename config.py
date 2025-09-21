@@ -30,6 +30,7 @@ class Config:
     
     # Background image path
     BACKGROUND_IMAGE = os.getenv('BACKGROUND_IMAGE', str(BASE_DIR / 'background.png'))
+    BACKGROUND_VIDEO = os.getenv('BACKGROUND_VIDEO', str(BASE_DIR / 'background.mp4'))
     
     # Database file path
     DATABASE_PATH = os.getenv('DATABASE_PATH', str(BASE_DIR / 'data/music_stream.db'))
@@ -40,6 +41,9 @@ class Config:
     # =============================================================================
     # STREAMING CONFIGURATION
     # =============================================================================
+    
+    # fifo name
+    AUDIO_FIFO = os.getenv("AUDIO_FIFO", "/tmp/audio_stream1.fifo")
     
     # YouTube Live RTMP URL
     YOUTUBE_URL = os.getenv('YOUTUBE_URL', '')
@@ -54,6 +58,7 @@ class Config:
     AUDIO_SAMPLE_RATE = int(os.getenv('AUDIO_SAMPLE_RATE', '44100'))
     AUDIO_CHANNELS = int(os.getenv('AUDIO_CHANNELS', '2'))
     AUDIO_BITRATE = os.getenv('AUDIO_BITRATE', '128k')
+    VIDEO_BITRATE = os.getenv('VIDEO_BITRATE', '2500k')
     AUDIO_FORMAT = os.getenv('AUDIO_FORMAT', 's16le')
     
     # Supported audio file extensions
@@ -176,7 +181,7 @@ class Config:
         os.makedirs(cls.LOGS_DIR, exist_ok=True)
         
         # Create logger
-        logger = logging.getLogger('music_streamer')
+        logger = logging.getLogger(__name__)
         logger.setLevel(getattr(logging, cls.LOG_LEVEL))
         
         # Clear existing handlers

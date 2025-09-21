@@ -1,13 +1,15 @@
 services:
   streamer:
-    image: registry.gitlab.com/sondieki/ffmpeg:latest
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile
-    command: ["python", "main.py"]
-    user: root
+    # image: registry.gitlab.com/sondieki/ffmpeg:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["python", "stream_out.py"]
+    user: "1000:1000"
     # profiles:
     #   - ffmpeg
+    devices: 
+      - "/dev/snd:/dev/snd"
     environment:
       - PYTHONPATH=/app
       - DATABASE_PATH=/app/data/music_stream.db
@@ -24,9 +26,18 @@ services:
       - ENABLE_FILE_WATCHING=true
       - ENABLE_DB_CLEANUP=true
       - ENABLE_DB_STATS=true
+      - DISPLAY=$DISPLAY
+      - PULSE_SERVER=unix:/run/user/1000/pulse/native
     volumes:
-      # Mount the ffmpeg directory to access the database and music files
+      # essentials
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - ~/.config/pulse:/home/streamer/.config/pulse # This path inside the container must match where the user '1000' looks for PulseAudio config.
+      - /var/run/user/1000/pulse:/run/user/1000/pulse # Replace 1000 with your actual host user ID
+
+      # files...
       - ./data:/app/data
       - /opt/streams/music:/app/music
+      - ${HOME}/Pictures/Pictures/Somwaki_Labs_Logo.png:/app/background.png
+      - ${HOME}/Music/streams/ffmpeg/background.mp4:/app/background.mp4
     restart: always
 

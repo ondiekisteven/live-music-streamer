@@ -1,32 +1,21 @@
 # Use Python 3.11 slim image as base
 FROM python:3.11-slim
 
-# Install system dependencies
 RUN apt-get update && apt-get install -y \
-    ffmpeg \
+    ffmpeg pulseaudio \
     && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
 WORKDIR /app
 
-# Copy requirements first for better caching
 COPY requirements.txt .
 
-# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy application files
-COPY main.py .
-COPY music_db.py .
-COPY config.py .
-COPY background.png .
 
 COPY . .
 
-# Create necessary directories
 RUN mkdir -p music logs conf
 
-# Set environment variables with defaults
+
 ENV MUSIC_DIR=/app/music
 ENV BACKGROUND_IMAGE=/app/background.png
 ENV DATABASE_PATH=/app/music_stream.db
@@ -44,10 +33,9 @@ ENV ENABLE_FILE_WATCHING=true
 ENV ENABLE_DB_CLEANUP=true
 ENV ENABLE_DB_STATS=true
 
-# Expose port (if needed for future web interface)
 EXPOSE 8080
 
-# Create non-root user for security
-RUN useradd -m -u 1000 streamer && \
+ARG UID=1000
+RUN useradd -m -u ${UID} streamer && \
     chown -R streamer:streamer /app
 USER streamer
