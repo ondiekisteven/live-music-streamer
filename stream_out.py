@@ -1,3 +1,4 @@
+import logging
 import signal
 import subprocess
 from config import Config
@@ -27,15 +28,16 @@ def get_ffmpeg_stream_cmd() -> list:
 
 
 def main():
-    logger = Config.setup_logging()
-    logger.info("Streaming started")
-    
+    Config.configure_logger()
+    logger = logging.getLogger(__name__)  
+      
     signal.signal(signal.SIGINT, signal_handler)  
     signal.signal(signal.SIGTERM, signal_handler) 
     ffmpeg_process = None
     ffmpeg_cmd = get_ffmpeg_stream_cmd()
     
     try:
+        db.start_streaming()
         ffmpeg_process = subprocess.Popen(
             ffmpeg_cmd,
             stdin=subprocess.PIPE,
@@ -57,7 +59,6 @@ def main():
         # db.stop_streaming()
         if ffmpeg_process:
             ffmpeg_process.send_signal(signal.SIGKILL)
-        logger.info("Application shutdown complete")
         logger.info("Application shutdown complete")
 
 

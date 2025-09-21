@@ -1,6 +1,5 @@
 import os
-import logging
-import logging.handlers
+import logging.config
 from pathlib import Path
 from typing import Optional
 from datetime import datetime
@@ -41,7 +40,7 @@ class Config:
     # =============================================================================
     # STREAMING CONFIGURATION
     # =============================================================================
-    
+    ENABLE_TIMED_SONGS = bool(int(os.getenv('ENABLE_TIMED_SONGS', '1')))
     # fifo name
     AUDIO_FIFO = os.getenv("AUDIO_FIFO", "/tmp/audio_stream1.fifo")
     
@@ -175,44 +174,62 @@ class Config:
         return True
     
     @classmethod
-    def setup_logging(cls) -> logging.Logger:
-        """Setup logging configuration"""
-        # Create logs directory if it doesn't exist
-        os.makedirs(cls.LOGS_DIR, exist_ok=True)
-        
-        # Create logger
-        logger = logging.getLogger(__name__)
-        logger.setLevel(getattr(logging, cls.LOG_LEVEL))
-        
-        # Clear existing handlers
-        logger.handlers.clear()
-        
-        # Create formatter
-        formatter = logging.Formatter(cls.LOG_FORMAT)
-        
-        # Console handler
-        if cls.LOG_TO_CONSOLE:
-            console_handler = logging.StreamHandler()
-            console_handler.setLevel(getattr(logging, cls.LOG_LEVEL))
-            console_handler.setFormatter(formatter)
-            logger.addHandler(console_handler)
-        
-        # File handler
-        if cls.LOG_TO_FILE:
-            log_file_path = os.path.join(cls.LOGS_DIR, cls.LOG_FILENAME)
-            file_handler = logging.handlers.RotatingFileHandler(
-                log_file_path,
-                maxBytes=cls.LOG_MAX_SIZE,
-                backupCount=cls.LOG_BACKUP_COUNT
-            )
-            file_handler.setLevel(getattr(logging, cls.LOG_LEVEL))
-            file_handler.setFormatter(formatter)
-            logger.addHandler(file_handler)
-        
-        return logger
-    
+    def configure_logger(cls):
+        logging.config.dictConfig({
+            'version': 1,
+            'disable_existing_loggers': bool(int(os.getenv('DISABLE_EXISTING_LOGGERS', '1'))),
+            'formatters': {
+                'console': {
+                    "format": "%(asctime)s\t%(levelname)s\t%(filename)s\t%(message)s"
+                },
+                'tiny': {
+                    "format": "%(levelname)s\t- %(message)s"
+                },
+                "standard": {
+                    "class": "logging.Formatter",
+                    'format': '%(asctime)s\t%(levelname)s\t[%(name)s:%(lineno)s]\t%(message)s',
+                    "datefmt": "%d %b %y %H:%M:%S"
+                }
+            },
+            'handlers': {
+                'console': {
+                    'class': 'logging.StreamHandler',
+                    'formatter': 'standard',
+                    "level": "INFO",
+                },
+                "file": {
+                    "class": "logging.handlers.RotatingFileHandler",
+                    "formatter": "standard",
+                    "level": "INFO",
+                    "filename": os.path.join(cls.BASE_DIR, 'logs/apis.log'),
+                    "mode": "a",
+                    "encoding": "utf-8",
+                    "maxBytes": 5000000,
+                    "backupCount": 100
+                },
+                "timed": {
+                    "class": "logging.handlers.TimedRotatingFileHandler",
+                    "formatter": "standard",
+                    "level": "INFO",
+                    "filename": os.path.join(cls.BASE_DIR, 'logs/apis.log'),
+                    "when": "midnight",
+                    "interval": 1,
+                    "backupCount": 100
+                }
+            },
+
+            'loggers': {
+                '': {
+                    'level': cls.LOG_LEVEL,
+                    'handlers': os.getenv('ENABLED_LOGGERS', "timed").split(","),
+                },
+            },
+        })
+    OVERRIDE_WITH_DAY_SONGS = bool(int(os.getenv('OVERRIDE_WITH_DAY_SONGS', '0')))
     @classmethod
     def get_play_time(cls):
+        if cls.OVERRIDE_WITH_DAY_SONGS:
+            return 'day'
         hour = datetime.now().hour
         if hour < cls.MORNING_PLAY_TIME:
             return 'morning'
@@ -304,3 +321,7 @@ class Config:
         print(f"Log Level: {cls.LOG_LEVEL}")
         print(f"File Watching: {'Enabled' if cls.ENABLE_FILE_WATCHING else 'Disabled'}")
         print("=" * 40)
+
+    NTFY_TOPIC = os.getenv('NTFY_TOPIC', 'streamer')
+    NTFY_TITLE = os.getenv('NTFY_TITLE', 'Stream Alert')
+    NTFY_PRIORITY = os.getenv('NTFY_PRIORITY', 'high')

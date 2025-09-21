@@ -3,7 +3,7 @@ This is the legacy application. I want to thank it for its service. But very soo
 """
 
 import os
-import random
+import logging
 import subprocess
 import time
 import threading
@@ -17,7 +17,8 @@ from config import Config
 if not Config.validate():
     exit(1)
 
-logger = Config.setup_logging()
+Config.configure_logger()
+logger = logging.getLogger(__name__)
 playlist = []
 playlist_lock = threading.Lock()
 db = MusicDatabase(Config.DATABASE_PATH)
