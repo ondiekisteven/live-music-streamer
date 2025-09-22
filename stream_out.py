@@ -6,8 +6,29 @@ from main import signal_handler
 from music_db import MusicDatabaseMysql as MusicDatabase
 
 db = MusicDatabase(Config.DATABASE_PATH)
+Config.configure_logger()
+logger = logging.getLogger(__name__)
 
 def get_ffmpeg_stream_cmd() -> list:
+    if Config.VIDEO_SOURCE == 'image': 
+        logger.info(f"SOURCE TYPE: {Config.VIDEO_SOURCE}")
+        return [
+            Config.FFMPEG_PATH,
+            "-re", "-thread_queue_size", "1024",
+            "-loop", "1", "-i", Config.BACKGROUND_IMAGE,
+            "-f", "pulse", "-i", "audio_mix.monitor",
+            "-map", "0:v", "-map", "1:a",
+            "-c:v", "libx264", "-preset", Config.VIDEO_PRESET, "-tune", Config.VIDEO_TUNE,
+            "-g", "60", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-b:a", Config.AUDIO_BITRATE, "-b:v", Config.VIDEO_BITRATE,
+            "-f", "flv", "-loglevel", "verbose",
+            "-reconnect", "1",
+            "-reconnect_streamed", "1",
+            "-reconnect_delay_max", "8",
+            "-reconnect_on_network_error", "1",
+            Config.YOUTUBE_URL
+        ]
+    
     return [
         Config.FFMPEG_PATH,
         "-re", "-thread_queue_size", "1024",
@@ -18,7 +39,7 @@ def get_ffmpeg_stream_cmd() -> list:
         "-c:v", "libx264", "-preset", Config.VIDEO_PRESET, 
         "-g", "60", "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", Config.AUDIO_BITRATE, "-b:v", Config.VIDEO_BITRATE, 
-        "-f", "flv",
+        "-f", "flv", "-loglevel", "verbose",
         "-reconnect", "1",
         "-reconnect_streamed", "1",
         "-reconnect_delay_max", "8",
@@ -28,8 +49,8 @@ def get_ffmpeg_stream_cmd() -> list:
 
 
 def main():
-    Config.configure_logger()
-    logger = logging.getLogger(__name__)  
+    logger = Config.configure_logger()
+    # logger = logging.getLogger(__name__)  
       
     signal.signal(signal.SIGINT, signal_handler)  
     signal.signal(signal.SIGTERM, signal_handler) 
@@ -47,7 +68,7 @@ def main():
             bufsize=1
         )
         for line in ffmpeg_process.stdout:
-            logger.info(line.strip())
+            logger.warning(line.strip())
         
         ffmpeg_process.wait()
         

@@ -1,7 +1,3 @@
-"""
-This is the legacy application. I want to thank it for its service. But very soon I am moving away from it. :(
-"""
-
 import os
 import logging
 import subprocess

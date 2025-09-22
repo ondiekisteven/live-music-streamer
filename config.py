@@ -6,6 +6,8 @@ from datetime import datetime
 
 class Config:
     """Configuration class for Music Streamer application"""
+    VIDEO_SOURCE = os.getenv("VIDEO_SOURCE", "image")
+    
     # =============================================================================
     # AUTHENTICATION
     # =============================================================================
@@ -174,10 +176,47 @@ class Config:
         return True
     
     @classmethod
-    def configure_logger(cls):
+    def configure_logger(cls) -> logging.Logger:
+        """Setup logging configuration"""
+        # Create logs directory if it doesn't exist
+        os.makedirs(cls.LOGS_DIR, exist_ok=True)
+        
+        # Create logger
+        logger = logging.getLogger('music_streamer')
+        logger.setLevel(getattr(logging, cls.LOG_LEVEL))
+        
+        # Clear existing handlers
+        logger.handlers.clear()
+        
+        # Create formatter
+        formatter = logging.Formatter(cls.LOG_FORMAT)
+        
+        # Console handler
+        if cls.LOG_TO_CONSOLE:
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(getattr(logging, cls.LOG_LEVEL))
+            console_handler.setFormatter(formatter)
+            logger.addHandler(console_handler)
+        
+        # File handler
+        if cls.LOG_TO_FILE:
+            log_file_path = os.path.join(cls.LOGS_DIR, cls.LOG_FILENAME)
+            file_handler = logging.handlers.RotatingFileHandler(
+                log_file_path,
+                maxBytes=cls.LOG_MAX_SIZE,
+                backupCount=cls.LOG_BACKUP_COUNT
+            )
+            file_handler.setLevel(getattr(logging, cls.LOG_LEVEL))
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
+        
+        return logger
+
+    @classmethod
+    def _configure_logger(cls):
         logging.config.dictConfig({
             'version': 1,
-            'disable_existing_loggers': bool(int(os.getenv('DISABLE_EXISTING_LOGGERS', '1'))),
+            'disable_existing_loggers': bool(int(os.getenv('DISABLE_EXISTING_LOGGERS', '0'))),
             'formatters': {
                 'console': {
                     "format": "%(asctime)s\t%(levelname)s\t%(filename)s\t%(message)s"
