@@ -615,7 +615,7 @@ class MusicDatabaseMysql:
             conn = self.get_connection()
             cursor = conn.cursor()
             
-            cursor.execute('SELECT * FROM songs ORDER BY created_at')
+            cursor.execute('SELECT * FROM songs where song_play_time = %s ORDER BY created_at', (Config.get_play_time(),))
             results = cursor.fetchall()
             
             return results

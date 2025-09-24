@@ -14,7 +14,7 @@ class Config:
     
     SECRET_KEY = os.getenv("JWT_SECRET_KEY", "xu0UqJbMmv5ljRSBLTcnMkdXrx9YfF6SUZyUiKiH")
     ALGORITHM = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv('ACCESS_TOKEN_EXPIRE_MINUTES', 30))
     
     # =============================================================================
     # DIRECTORY CONFIGURATION
