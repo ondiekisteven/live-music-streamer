@@ -913,9 +913,14 @@ class MusicDatabaseMysql:
                     )
 
                 # Pick a new random next (exclude the new current)
-                cursor.execute(
-                    "SELECT id FROM songs WHERE id != %s AND song_play_time = %s ORDER BY RAND() LIMIT 1", (new_current_id, Config.get_play_time(),)
-                )
+                if Config.ONLY_FILES:
+                    cursor.execute(
+                    "SELECT id FROM songs WHERE id != %s AND souce_type = 'file' ORDER BY RAND() LIMIT 1", (new_current_id,)
+                    )
+                else:
+                    cursor.execute(
+                        "SELECT id FROM songs WHERE id != %s AND song_play_time = %s ORDER BY RAND() LIMIT 1", (new_current_id, Config.get_play_time(),)
+                    )
                 row = cursor.fetchone()
                 if row:
                     cursor.execute(
