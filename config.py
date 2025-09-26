@@ -7,7 +7,7 @@ from datetime import datetime
 class Config:
     """Configuration class for Music Streamer application"""
     VIDEO_SOURCE = os.getenv("VIDEO_SOURCE", "image")
-    
+    ONLY_FILES = bool(int(os.getenv('ONLY_FILES', '1')))
     # =============================================================================
     # AUTHENTICATION
     # =============================================================================
@@ -48,6 +48,7 @@ class Config:
     
     # YouTube Live RTMP URL
     YOUTUBE_URL = os.getenv('YOUTUBE_URL', '')
+    SECONDARY_URL = os.getenv('SECONDARY_URL', '')
     
     # Video configuration
     VIDEO_WIDTH = int(os.getenv('VIDEO_WIDTH', '1280'))
