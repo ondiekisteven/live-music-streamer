@@ -915,7 +915,7 @@ class MusicDatabaseMysql:
                 # Pick a new random next (exclude the new current)
                 if Config.ONLY_FILES:
                     cursor.execute(
-                    "SELECT id FROM songs WHERE id != %s AND souce_type = 'file' ORDER BY RAND() LIMIT 1", (new_current_id,)
+                    "SELECT id FROM songs WHERE id != %s AND source_type = 'file' ORDER BY RAND() LIMIT 1", (new_current_id,)
                     )
                 else:
                     cursor.execute(
