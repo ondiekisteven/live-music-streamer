@@ -9,14 +9,14 @@ db = MusicDatabase(Config.DATABASE_PATH)
 Config.configure_logger()
 logger = logging.getLogger(__name__)
 
-def get_ffmpeg_stream_cmd() -> list:
+def get_ffmpeg_stream_cmd(pulse_name='audio_mix') -> list:
     if Config.VIDEO_SOURCE == 'image': 
         logger.info(f"SOURCE TYPE: {Config.VIDEO_SOURCE}")
         return [
             Config.FFMPEG_PATH,
             "-re", "-thread_queue_size", "1024",
             "-loop", "1", "-i", Config.BACKGROUND_IMAGE,
-            "-f", "pulse", "-i", "audio_mix.monitor",
+            "-f", "pulse", "-i", f"{pulse_name}.monitor",
             "-map", "0:v", "-map", "1:a",
             "-c:v", "libx264", "-preset", Config.VIDEO_PRESET, "-tune", Config.VIDEO_TUNE,
             "-g", "60", "-pix_fmt", "yuv420p",
@@ -26,14 +26,17 @@ def get_ffmpeg_stream_cmd() -> list:
             "-reconnect_streamed", "1",
             "-reconnect_delay_max", "8",
             "-reconnect_on_network_error", "1",
-            Config.YOUTUBE_URL
+            Config.YOUTUBE_URL,
+            # "-f", "flv",
+            # Config.SECONDARY_URL
+
         ]
     
     return [
         Config.FFMPEG_PATH,
         "-re", "-thread_queue_size", "1024",
         "-stream_loop", "-1", "-i", Config.BACKGROUND_VIDEO, 
-        "-f", "pulse", "-i", "audio_mix.monitor", 
+        "-f", "pulse", "-i", f"{pulse_name}.monitor", 
         "-filter_complex", "[0:a][1:a]amix=inputs=2:dropout_transition=2[outa]",
         "-map", "0:V", "-map", "[outa]",
         "-c:v", "libx264", "-preset", Config.VIDEO_PRESET, 

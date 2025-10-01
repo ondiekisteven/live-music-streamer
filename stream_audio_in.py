@@ -54,14 +54,14 @@ def load_playlist():
     logger.info(f"Playlist updated: {len(files)} tracks loaded")
 
 
-def get_audio_stream_cmd(file_path):
+def get_audio_stream_cmd(file_path, pulse_name='audio_mix'):
     return [
         Config.FFMPEG_PATH, 
         "-re", "-i", file_path, 
         "-f", "pulse", "-ar", "44100", 
         "-ac", str(Config.AUDIO_CHANNELS), 
         "-loglevel", "verbose", 
-        "audio_mix"
+        pulse_name
     ]
 
 def stream_loop():
