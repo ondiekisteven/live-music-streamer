@@ -10,7 +10,7 @@ db = MusicDatabase(Config.DATABASE_PATH)
 Config.configure_logger()
 logger = logging.getLogger(__name__)
 
-def get_ffmpeg_stream_cmd(pulse_name='audio_mix') -> list:
+def get_ffmpeg_stream_cmd(pulse_name) -> list:
     if Config.VIDEO_SOURCE == 'image': 
         logger.info(f"SOURCE TYPE: {Config.VIDEO_SOURCE}")
         return [

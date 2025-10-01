@@ -49,22 +49,22 @@ def load_playlist():
     if added_count > 0:
         logger.info(f"Database sync: Added {added_count} new songs")
 
-    with playlist_lock:
-        pass
     logger.info(f"Playlist updated: {len(files)} tracks loaded")
 
 
-def get_audio_stream_cmd(file_path, pulse_name='audio_mix'):
+def get_audio_stream_cmd(file_path, pulse_name):
     return [
         Config.FFMPEG_PATH, 
         "-re", "-i", file_path, 
+        "-device", pulse_name
         "-f", "pulse", "-ar", "44100", 
         "-ac", str(Config.AUDIO_CHANNELS), 
         "-loglevel", "verbose", 
-        pulse_name
+        "dummy"
     ]
 
 def stream_loop(application_id, pulse_name):
+    processes = []
     try:
         while True:
             current_song, next_song = db.advance_playback(application_id=application_id)
@@ -92,12 +92,12 @@ def stream_loop(application_id, pulse_name):
                     file_stream_cmd = get_audio_stream_cmd(file_path, pulse_name=pulse_name)
                     file_process = None
                     file_process = subprocess.Popen(file_stream_cmd, stdout=subprocess.PIPE)
+                    processes.append(file_process)
                     
                     file_process.wait()
                 except Exception as x: 
                     logger.exception(x)
                     send_ntfy_notification(f"⚠️ {str(x)}", priority='max', application_id=application_id)
-
 
             elif source_type == "youtube":
                 try:
@@ -109,6 +109,7 @@ def stream_loop(application_id, pulse_name):
                     ffmpeg_cmd = get_audio_stream_cmd("pipe:0", pulse_name=pulse_name)
 
                     ffmpeg_proc = subprocess.Popen(ffmpeg_cmd, stdin=yt_proc.stdout)
+                    processes.append(ffmpeg_proc)
 
                     yt_proc.stdout.close()
 
@@ -125,6 +126,10 @@ def stream_loop(application_id, pulse_name):
     except KeyboardInterrupt as x:
         logger.info("Stopping stream...")
     finally:
+        for p in processes:
+            if p.poll() is None:
+                p.terminate()
+
         logger.info("Streaming stopped")
 
 
