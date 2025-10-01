@@ -56,7 +56,7 @@ def get_audio_stream_cmd(file_path, pulse_name):
     return [
         Config.FFMPEG_PATH, 
         "-re", "-i", file_path, 
-        "-device", pulse_name
+        "-device", pulse_name,
         "-f", "pulse", "-ar", "44100", 
         "-ac", str(Config.AUDIO_CHANNELS), 
         "-loglevel", "verbose", 
