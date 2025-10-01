@@ -10,16 +10,20 @@ def send_ntfy_notification(
     topic: str=Config.NTFY_TOPIC,
     title: str = Config.NTFY_TITLE,
     priority: str = Config.NTFY_PRIORITY,
-    tags: list[str] = None
+    tags: list[str] = None,
+    application_id: int = 1
 ) -> None:
 
+    if tags is None: 
+        tags = []
     if not topic.startswith('http'):
         logger.error("Error: The topic must be a valid URL starting with 'http' or 'https'.")
         return
 
     headers = {}
+    tags.append(f"app_{application_id}")
     if title:
-        headers['Title'] = title
+        headers['Title'] = f"{title} [{application_id}]"
     if priority:
         headers['Priority'] = priority
     if tags:

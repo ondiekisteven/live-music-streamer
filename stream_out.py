@@ -4,6 +4,7 @@ import subprocess
 from config import Config
 from main import signal_handler
 from music_db import MusicDatabaseMysql as MusicDatabase
+from utils import send_ntfy_notification
 
 db = MusicDatabase(Config.DATABASE_PATH)
 Config.configure_logger()
@@ -26,10 +27,7 @@ def get_ffmpeg_stream_cmd(pulse_name='audio_mix') -> list:
             "-reconnect_streamed", "1",
             "-reconnect_delay_max", "8",
             "-reconnect_on_network_error", "1",
-            Config.YOUTUBE_URL,
-            # "-f", "flv",
-            # Config.SECONDARY_URL
-
+            Config.RTMP_URL,
         ]
     
     return [
@@ -47,21 +45,24 @@ def get_ffmpeg_stream_cmd(pulse_name='audio_mix') -> list:
         "-reconnect_streamed", "1",
         "-reconnect_delay_max", "8",
         "-reconnect_on_network_error", "1",
-        Config.YOUTUBE_URL
+        Config.RTMP_URL
     ]
 
 
 def main():
     logger = Config.configure_logger()
     # logger = logging.getLogger(__name__)  
+
+    pulse_name = Config.PULSE_NAME
+    application_id = Config.APPLICATION_ID
       
     signal.signal(signal.SIGINT, signal_handler)  
     signal.signal(signal.SIGTERM, signal_handler) 
     ffmpeg_process = None
-    ffmpeg_cmd = get_ffmpeg_stream_cmd()
+    ffmpeg_cmd = get_ffmpeg_stream_cmd(pulse_name=pulse_name)
     
     try:
-        db.start_streaming()
+        db.start_streaming(application_id=application_id)
         ffmpeg_process = subprocess.Popen(
             ffmpeg_cmd,
             stdin=subprocess.PIPE,
@@ -78,9 +79,13 @@ def main():
         if ffmpeg_process.returncode != 0:
             logger.error(f"FFmpeg exited with code {ffmpeg_process.returncode}")
             raise subprocess.CalledProcessError(ffmpeg_process.returncode, ffmpeg_cmd)
+    except Exception as x: 
+        logger.exception(x)
+        send_ntfy_notification(f"⚠️ {str(x)} ⚠️", priority='max', application_id=application_id)
         
     finally:
-        # db.stop_streaming()
+       
+        send_ntfy_notification(f"⚠️ STREAM OUT STOPPED ⚠️", priority='max', application_id=application_id)
         if ffmpeg_process:
             ffmpeg_process.send_signal(signal.SIGKILL)
         logger.info("Application shutdown complete")

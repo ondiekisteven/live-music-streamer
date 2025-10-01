@@ -15,6 +15,7 @@ services:
       - DATABASE_PATH=/app/data/music_stream.db
       - LOGS_DIR=/app/logs
       - YOUTUBE_URL=rtmp://a.rtmp.youtube.com/live2/4f28-fgx3-hw6c-8fj7-cd59
+      - RTMP_URL=rtmp://a.rtmp.youtube.com/live2/4f28-fgx3-hw6c-8fj7-cd59
       - VIDEO_WIDTH=1280
       - VIDEO_HEIGHT=720
       - AUDIO_SAMPLE_RATE=44100
@@ -57,6 +58,7 @@ services:
       - DATABASE_PATH=/app/data/music_stream.db
       - LOGS_DIR=/app/logs
       - YOUTUBE_URL=rtmp://a.rtmp.youtube.com/live2/4f28-fgx3-hw6c-8fj7-cd59
+      - RTMP_URL=rtmp://a.rtmp.youtube.com/live2/4f28-fgx3-hw6c-8fj7-cd59
       - VIDEO_WIDTH=1280
       - VIDEO_HEIGHT=720
       - AUDIO_SAMPLE_RATE=44100

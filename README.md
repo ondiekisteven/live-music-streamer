@@ -71,7 +71,7 @@ A Python-based music streaming application that broadcasts audio to YouTube Live
    ```bash
    docker run -d --name music-stream \
      -v /path/to/your/music:/app/music \
-     -e YOUTUBE_URL="rtmp://a.rtmp.youtube.com/live2/your-stream-key" \
+     -e RTMP_URL="rtmp://a.rtmp.youtube.com/live2/your-stream-key" \
      music-streamer
    ```
 
@@ -81,14 +81,14 @@ A Python-based music streaming application that broadcasts audio to YouTube Live
 
 - `MUSIC_DIR`: Path to music directory (default: `/home/steven/Music/streams/ffmpeg/music`)
 - `BACKGROUND`: Path to background image (default: `/home/steven/Music/streams/ffmpeg/background.png`)
-- `YOUTUBE_URL`: YouTube Live RTMP URL (required)
+- `RTMP_URL`: YouTube Live RTMP URL (required)
 
 ### YouTube Live Setup
 
 1. Go to [YouTube Studio](https://studio.youtube.com/)
 2. Create a new live stream
 3. Copy the RTMP URL (format: `rtmp://a.rtmp.youtube.com/live2/your-stream-key`)
-4. Set this as your `YOUTUBE_URL` environment variable
+4. Set this as your `RTMP_URL` environment variable
 
 ## Usage
 
@@ -104,7 +104,7 @@ A Python-based music streaming application that broadcasts audio to YouTube Live
 
 3. **Configure YouTube URL**:
    ```bash
-   export YOUTUBE_URL="rtmp://a.rtmp.youtube.com/live2/your-stream-key"
+   export RTMP_URL="rtmp://a.rtmp.youtube.com/live2/your-stream-key"
    ```
 
 4. **Run the application**:
@@ -118,14 +118,14 @@ A Python-based music streaming application that broadcasts audio to YouTube Live
 # Basic run
 docker run -d --name music-stream \
   -v /path/to/your/music:/app/music \
-  -e YOUTUBE_URL="rtmp://a.rtmp.youtube.com/live2/your-stream-key" \
+  -e RTMP_URL="rtmp://a.rtmp.youtube.com/live2/your-stream-key" \
   music-streamer
 
 # With custom background
 docker run -d --name music-stream \
   -v /path/to/your/music:/app/music \
   -v /path/to/background.png:/app/background.png \
-  -e YOUTUBE_URL="rtmp://a.rtmp.youtube.com/live2/your-stream-key" \
+  -e RTMP_URL="rtmp://a.rtmp.youtube.com/live2/your-stream-key" \
   music-streamer
 
 # View logs

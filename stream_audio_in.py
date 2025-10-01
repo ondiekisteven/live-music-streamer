@@ -64,15 +64,15 @@ def get_audio_stream_cmd(file_path, pulse_name='audio_mix'):
         pulse_name
     ]
 
-def stream_loop():
+def stream_loop(application_id, pulse_name):
     try:
         while True:
-            current_song, next_song = db.advance_playback()
+            current_song, next_song = db.advance_playback(application_id=application_id)
 
             if not current_song:
                 m = "No song available to play. Retrying..."
                 logger.warning(m)
-                send_ntfy_notification(m)
+                send_ntfy_notification(m, application_id=application_id)
                 time.sleep(Config.PLAYLIST_REFRESH_INTERVAL)
                 continue
 
@@ -82,21 +82,21 @@ def stream_loop():
             source_type = current_song["source_type"]
             next_song_title = next_song["title"] if next_song else "Unknown"
             
-            send_ntfy_notification(f"✅ Playing: {song_title}\nNext: {next_song_title}", priority='low')
+            send_ntfy_notification(f"▶️ Now : {song_title}\n🕑 Next : {next_song_title}", priority='low', application_id=application_id)
 
             if song_id:
                 logger.debug(f"Database: Song ID: {song_id}")
 
             if source_type == "file":
                 try:
-                    file_stream_cmd = get_audio_stream_cmd(file_path)
+                    file_stream_cmd = get_audio_stream_cmd(file_path, pulse_name=pulse_name)
                     file_process = None
                     file_process = subprocess.Popen(file_stream_cmd, stdout=subprocess.PIPE)
                     
                     file_process.wait()
                 except Exception as x: 
                     logger.exception(x)
-                    send_ntfy_notification(f"⚠️ {str(x)}", priority='max')
+                    send_ntfy_notification(f"⚠️ {str(x)}", priority='max', application_id=application_id)
 
 
             elif source_type == "youtube":
@@ -106,7 +106,7 @@ def stream_loop():
                         stdout=subprocess.PIPE
                     )
 
-                    ffmpeg_cmd = get_audio_stream_cmd("pipe:0")
+                    ffmpeg_cmd = get_audio_stream_cmd("pipe:0", pulse_name=pulse_name)
 
                     ffmpeg_proc = subprocess.Popen(ffmpeg_cmd, stdin=yt_proc.stdout)
 
@@ -116,7 +116,7 @@ def stream_loop():
                     yt_proc.wait()
                 except Exception as x: 
                     logger.exception(x)
-                    send_ntfy_notification(f"⚠️ {str(x)}", priority='max')
+                    send_ntfy_notification(f"⚠️ {str(x)}", priority='max', application_id=application_id)
 
             if song_id:
                 db.update_song_played(song_id)
@@ -128,7 +128,7 @@ def stream_loop():
         logger.info("Streaming stopped")
 
 
-def show_stats():
+def show_stats(application_id):
     """Display database statistics"""
     if not Config.ENABLE_DB_STATS:
         return
@@ -141,8 +141,8 @@ def show_stats():
         logger.info(f"Most played: {stats['most_played']} ({stats['most_played_count']} times)")
     
     # Show current playback state
-    current_song = db.get_current_song()
-    next_song = db.get_next_song()
+    current_song = db.get_current_song(application_id=application_id)
+    next_song = db.get_next_song(application_id=application_id)
     
     if current_song:
         logger.info(f"Currently playing: {current_song[2]}")
@@ -152,8 +152,11 @@ def show_stats():
 
 
 def main():
+    application_id = Config.APPLICATION_ID
+    pulse_name = Config.PULSE_NAME
+
     logger.info("=== Music Streamer with Database Tracking ===")
-    send_ntfy_notification("✅ Stream Input Started", priority='max')
+    send_ntfy_notification("✅ Stream Input Started", priority='max', application_id=application_id)
     Config.print_config()
 
     signal.signal(signal.SIGINT, signal_handler)   # Ctrl+C
@@ -162,16 +165,16 @@ def main():
     load_playlist()
 
     try:
-        stream_loop()
+        stream_loop(application_id=application_id, pulse_name=pulse_name)
     finally:
         # Ensure streaming is stopped on any shutdown
-        db.stop_streaming()
+        db.stop_streaming(application_id=application_id)
         logger.info("Streaming stopped (shutdown)")
 
         logger.info("=== Final Statistics ===")
-        show_stats()
+        show_stats(application_id=application_id)
         logger.info("Application shutdown complete")
-    send_ntfy_notification("⚠️ Stream input process stopped!!", priority='max')
+    send_ntfy_notification("⚠️ Stream input process stopped!!", priority='max', application_id=application_id)
     
 if __name__ == "__main__":
     main()

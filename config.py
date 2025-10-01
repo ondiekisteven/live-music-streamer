@@ -6,6 +6,10 @@ from datetime import datetime
 
 class Config:
     """Configuration class for Music Streamer application"""
+
+    APPLICATION_ID: str = os.getenv("APPLICATION_ID", '')
+    PULSE_NAME: str = os.getenv("PULSE_NAME", '')
+
     VIDEO_SOURCE = os.getenv("VIDEO_SOURCE", "image")
     ONLY_FILES = bool(int(os.getenv('ONLY_FILES', '1')))
     # =============================================================================
@@ -48,6 +52,7 @@ class Config:
     
     # YouTube Live RTMP URL
     YOUTUBE_URL = os.getenv('YOUTUBE_URL', '')
+    RTMP_URL = os.getenv('RTMP_URL', YOUTUBE_URL)
     SECONDARY_URL = os.getenv('SECONDARY_URL', '')
     
     # Video configuration
@@ -159,16 +164,27 @@ class Config:
             errors.append(f"Background image does not exist: {cls.BACKGROUND_IMAGE}")
         
         # Check YouTube URL
-        if not cls.YOUTUBE_URL:
+        if not cls.RTMP_URL:
             errors.append("YouTube URL is required")
-        elif not cls.YOUTUBE_URL.startswith('rtmp://'):
+        elif not cls.RTMP_URL.startswith('rtmp://'):
             errors.append("YouTube URL must be a valid RTMP URL")
         
         # Check log level
         valid_log_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
         if cls.LOG_LEVEL not in valid_log_levels:
             errors.append(f"Invalid log level: {cls.LOG_LEVEL}. Must be one of {valid_log_levels}")
+
+        if not cls.PULSE_NAME:
+            errors.append("PULSE_NAME must be setup")
         
+        if not cls.APPLICATION_ID:
+            errors.append("APPLICATION_ID must be setup")
+
+        if not cls.APPLICATION_ID.isnumeric():
+            errors.append("APPLICATION_ID must be a valid number")
+        else:
+            cls.APPLICATION_ID = int(cls.APPLICATION_ID)
+
         if errors:
             for error in errors:
                 print(f"Configuration Error: {error}")
@@ -307,7 +323,7 @@ class Config:
             "-reconnect_streamed", "1",
             "-reconnect_delay_max", "8",
             "-reconnect_on_network_error", "1",
-            cls.YOUTUBE_URL
+            cls.RTMP_URL
 
         ]
         
@@ -333,7 +349,7 @@ class Config:
                 "y=h-th-20:fontsize=24:fontcolor=yellow:borderw=2"
             ),
             "-f", "flv",
-            cls.YOUTUBE_URL
+            cls.RTMP_URL
         ]
 
     @classmethod
@@ -354,7 +370,7 @@ class Config:
         print(f"Background Image: {cls.BACKGROUND_IMAGE}")
         print(f"Database Path: {cls.DATABASE_PATH}")
         print(f"Logs Directory: {cls.LOGS_DIR}")
-        print(f"YouTube URL: {cls.YOUTUBE_URL[:20]}..." if cls.YOUTUBE_URL else "Not set")
+        print(f"RTMP URL: {cls.RTMP_URL[:20]}..." if cls.RTMP_URL else "Not set")
         print(f"Video Resolution: {cls.VIDEO_WIDTH}x{cls.VIDEO_HEIGHT}")
         print(f"Audio Sample Rate: {cls.AUDIO_SAMPLE_RATE}Hz")
         print(f"Supported Extensions: {cls.SUPPORTED_EXTENSIONS}")

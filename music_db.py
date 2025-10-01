@@ -14,478 +14,6 @@ from mysql.connector import Error
 logger = logging.getLogger(__name__)
 
 
-# class MusicDatabase:
-#     """SQLite database helper for music streaming application"""
-    
-#     def __init__(self, db_path: str = os.path.join(Config.BASE_DIR, "data/music_stream.db")):
-#         self.db_path = db_path
-#         self.lock = threading.Lock()
-#         self._init_database()
-    
-#     def _init_database(self):
-#         """Initialize database tables"""
-#         with self.lock:
-#             conn = sqlite3.connect(self.db_path)
-#             cursor = conn.cursor()
-            
-#             # Songs table
-#             cursor.execute('''
-#                 CREATE TABLE IF NOT EXISTS songs (
-#                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-#                     file_path TEXT UNIQUE NOT NULL,
-#                     title TEXT,
-#                     duration_seconds INTEGER,
-#                     last_played TIMESTAMP,
-#                     play_count INTEGER DEFAULT 0,
-#                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-#                 )
-#             ''')
-            
-#             # Playback state table (singleton)
-#             cursor.execute('''
-#                 CREATE TABLE IF NOT EXISTS playback_state (
-#                     id INTEGER PRIMARY KEY DEFAULT 1,
-#                     current_song_id INTEGER,
-#                     next_song_id INTEGER,
-#                     playlist_position INTEGER DEFAULT 0,
-#                     is_streaming BOOLEAN DEFAULT 0,
-#                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-#                     FOREIGN KEY (current_song_id) REFERENCES songs (id),
-#                     FOREIGN KEY (next_song_id) REFERENCES songs (id),
-#                     CHECK (id = 1)
-#                 )
-#             ''')
-            
-#             cursor.execute("""
-#                 CREATE TABLE IF NOT EXISTS users (
-#                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-#                     username TEXT UNIQUE NOT NULL,
-#                     password TEXT NOT NULL,
-#                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-#                 )
-#             """)
-            
-#             # MIGRATIONS
-#             try:
-#                 cursor.execute('ALTER TABLE playback_state ADD COLUMN is_streaming BOOLEAN DEFAULT 0')
-#             except sqlite3.OperationalError as x:
-#                 logger.exception(x)
-#                 pass
-            
-#             try:
-#                 cursor.execute("ALTER TABLE songs ADD COLUMN source_type TEXT DEFAULT 'file'")
-#             except sqlite3.OperationalError as x:
-#                 logger.exception(x)
-#                 pass
-            
-#             conn.commit()
-#             conn.close()
-    
-#     def add_song(self, file_path: str, title: Optional[str] = None, duration: Optional[int] = None) -> int:
-#         """Add a song to the database, return song ID"""
-#         with self.lock:
-#             conn = sqlite3.connect(self.db_path)
-#             cursor = conn.cursor()
-            
-#             # Extract title from filename if not provided
-#             if not title:
-#                 title = os.path.splitext(os.path.basename(file_path))[0]
-            
-#             cursor.execute('''
-#                 INSERT OR REPLACE INTO songs (file_path, title, duration_seconds)
-#                 VALUES (?, ?, ?)
-#             ''', (file_path, title, duration))
-            
-#             song_id = cursor.lastrowid
-#             conn.commit()
-#             conn.close()
-#             return song_id
-    
-#     def get_song(self, song_id: int) -> Optional[Tuple]:
-#         """Get song by ID: (id, file_path, title, duration_seconds, last_played, play_count, created_at)"""
-#         with self.lock:
-#             conn = sqlite3.connect(self.db_path)
-#             cursor = conn.cursor()
-            
-#             cursor.execute('SELECT * FROM songs WHERE id = ?', (song_id,))
-#             result = cursor.fetchone()
-            
-#             conn.close()
-#             return result
-    
-#     def get_song_by_path(self, file_path: str) -> Optional[Tuple]:
-#         """Get song by file path"""
-#         with self.lock:
-#             conn = sqlite3.connect(self.db_path)
-#             cursor = conn.cursor()
-            
-#             cursor.execute('SELECT * FROM songs WHERE file_path = ?', (file_path,))
-#             result = cursor.fetchone()
-            
-#             conn.close()
-#             return result
-    
-#     def update_song_played(self, song_id: int):
-#         """Mark song as played and increment play count"""
-#         with self.lock:
-#             conn = sqlite3.connect(self.db_path)
-#             cursor = conn.cursor()
-            
-#             cursor.execute('''
-#                 UPDATE songs 
-#                 SET last_played = CURRENT_TIMESTAMP, play_count = play_count + 1
-#                 WHERE id = ?
-#             ''', (song_id,))
-            
-#             conn.commit()
-#             conn.close()
-    
-#     def get_all_songs(self) -> List[Tuple]:
-#         """Get all songs ordered by creation date"""
-#         with self.lock:
-#             conn = sqlite3.connect(self.db_path)
-#             cursor = conn.cursor()
-            
-#             cursor.execute('SELECT * FROM songs ORDER BY created_at')
-#             results = cursor.fetchall()
-            
-#             conn.close()
-#             return results
-    
-#     def set_current_song(self, song_id: int, next_song_id: Optional[int] = None, position: int = 0):
-#         """Set currently playing song and optionally next song"""
-#         with self.lock:
-#             conn = sqlite3.connect(self.db_path)
-#             cursor = conn.cursor()
-            
-#             cursor.execute('''
-#                 UPDATE playback_state 
-#                 SET current_song_id = ?, next_song_id = ?, playlist_position = ?, updated_at = CURRENT_TIMESTAMP
-#                 WHERE id = 1
-#             ''', (song_id, next_song_id, position))
-            
-#             conn.commit()
-#             conn.close()
-    
-#     def get_current_song(self) -> Optional[Tuple]:
-#         """Get currently playing song info"""
-#         with self.lock:
-#             conn = sqlite3.connect(self.db_path)
-#             cursor = conn.cursor()
-            
-#             cursor.execute('''
-#                 SELECT s.* FROM songs s
-#                 JOIN playback_state p ON s.id = p.current_song_id
-#                 WHERE p.id = 1
-#             ''')
-#             result = cursor.fetchone()
-            
-#             conn.close()
-#             return result
-    
-#     def get_next_song(self) -> Optional[Tuple]:
-#         """Get next song to be played"""
-#         with self.lock:
-#             conn = sqlite3.connect(self.db_path)
-#             cursor = conn.cursor()
-            
-#             cursor.execute('''
-#                 SELECT s.* FROM songs s
-#                 JOIN playback_state p ON s.id = p.next_song_id
-#                 WHERE p.id = 1
-#             ''')
-#             result = cursor.fetchone()
-            
-#             conn.close()
-#             return result
-    
-#     def get_playback_state(self) -> Optional[Tuple]:
-#         """Get current playback state: (current_song_id, next_song_id, playlist_position, is_streaming, updated_at)"""
-#         with self.lock:
-#             conn = sqlite3.connect(self.db_path)
-#             cursor = conn.cursor()
-            
-#             cursor.execute('''
-#                 SELECT current_song_id, next_song_id, playlist_position, is_streaming, updated_at
-#                 FROM playback_state WHERE id = 1
-#             ''')
-#             result = cursor.fetchone()
-            
-#             conn.close()
-#             return result
-    
-#     def start_streaming(self):
-#         """Create playback state record when streaming starts"""
-#         with self.lock:
-#             conn = sqlite3.connect(self.db_path)
-#             cursor = conn.cursor()
-            
-#             # update existing playback state
-#             cursor.execute('''
-#                 INSERT INTO playback_state (id, is_streaming, updated_at)
-#                 VALUES (1, 1, CURRENT_TIMESTAMP)
-#                 ON CONFLICT(id) DO UPDATE SET
-#                     is_streaming = excluded.is_streaming,
-#                     updated_at = excluded.updated_at
-#             ''')
-            
-            
-#             conn.commit()
-#             conn.close()
-    
-#     def stop_streaming(self):
-#         """Remove playback state record when streaming stops"""
-#         with self.lock:
-#             conn = sqlite3.connect(self.db_path)
-#             cursor = conn.cursor()
-            
-#             # Remove the playback state record completely
-#             cursor.execute('UPDATE playback_state SET is_streaming = 0 WHERE id = 1')
-            
-#             conn.commit()
-#             conn.close()
-    
-#     def is_streaming(self) -> bool:
-#         """Check if streaming is active by checking if playback_state record exists"""
-#         with self.lock:
-#             conn = sqlite3.connect(self.db_path)
-#             cursor = conn.cursor()
-            
-#             cursor.execute('SELECT COUNT(*) FROM playback_state')
-#             result = cursor.fetchone()
-            
-#             conn.close()
-#             return bool(result[0]) if result else False
-    
-#     def remove_song(self, song_id: int) -> bool:
-#         """Remove song from database"""
-#         with self.lock:
-#             conn = sqlite3.connect(self.db_path)
-#             cursor = conn.cursor()
-            
-#             cursor.execute('DELETE FROM songs WHERE id = ?', (song_id,))
-#             deleted = cursor.rowcount > 0
-            
-#             conn.commit()
-#             conn.close()
-#             return deleted
-    
-
-#     def advance_playback(self, increment_play_count=False):
-#         """
-#         Promote next -> current, optionally increment play_count for new current,
-#         select a new random next (excluding current), and return (current, next).
-
-#         Returns:
-#         (current_row, next_row) where each is a dict: {'id','file_path','title'}
-#         Either may be None if no song is available.
-#         """
-#         with self.lock:
-#             conn = sqlite3.connect(self.db_path)
-#             conn.row_factory = sqlite3.Row
-#             try:
-#                 # Ensure atomicity
-#                 conn.execute("BEGIN IMMEDIATE")
-
-#                 conn.execute(
-#                     "INSERT OR IGNORE INTO playback_state (id, is_streaming) VALUES (1, 0)"
-#                 )
-
-#                 ps = conn.execute(
-#                     "SELECT current_song_id, next_song_id FROM playback_state WHERE id = 1"
-#                 ).fetchone()
-#                 current_id = ps["current_song_id"] if ps else None
-#                 next_id = ps["next_song_id"] if ps else None
-
-#                 # Case A: first-run, both NULL -> choose two random songs (or one if only one)
-#                 if not current_id and not next_id:
-#                     rows = conn.execute(
-#                         "SELECT id, file_path, title FROM songs ORDER BY RANDOM() LIMIT 2"
-#                     ).fetchall()
-#                     if not rows:
-#                         conn.commit()
-#                         return None, None  # no songs at all
-
-#                     if len(rows) == 1:
-#                         cur_row = rows[0]
-#                         next_row = rows[0]
-#                     else:
-#                         cur_row = rows[0]
-#                         next_row = rows[1]
-
-#                     conn.execute(
-#                         "UPDATE playback_state SET current_song_id = ?, next_song_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1",
-#                         (cur_row["id"], next_row["id"]),
-#                     )
-
-#                     conn.execute(
-#                         "UPDATE songs SET play_count = play_count + 1, last_played = CURRENT_TIMESTAMP WHERE id = ?",
-#                         (cur_row["id"],),
-#                     )
-
-#                 else:
-#                     # Case B: normal promotion
-#                     # If there is no next_id (weird case), pick a random next that isn't current
-#                     if next_id is None:
-#                         row = conn.execute(
-#                             "SELECT id FROM songs WHERE id != ? ORDER BY RANDOM() LIMIT 1", (current_id,)
-#                         ).fetchone()
-#                         if row:
-#                             next_id = row["id"]
-#                             conn.execute(
-#                                 "UPDATE playback_state SET next_song_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1",
-#                                 (next_id,),
-#                             )
-#                         else: 
-#                             conn.execute(
-#                                 "UPDATE playback_state SET next_song_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1",
-#                                 (current_id,),
-#                             )
-#                             next_id = current_id
-
-#                     # Promote next -> current
-#                     conn.execute(
-#                         "UPDATE playback_state SET current_song_id = next_song_id, updated_at = CURRENT_TIMESTAMP WHERE id = 1"
-#                     )
-
-#                     # Get the newly promoted current ID
-#                     new_current_id = conn.execute(
-#                         "SELECT current_song_id FROM playback_state WHERE id = 1"
-#                     ).fetchone()[0]
-
-#                     if increment_play_count:
-#                         conn.execute(
-#                             "UPDATE songs SET play_count = play_count + 1, last_played = CURRENT_TIMESTAMP WHERE id = ?",
-#                             (new_current_id,),
-#                         )
-
-#                     # Pick a new random next (exclude the new current)
-#                     row = conn.execute(
-#                         "SELECT id FROM songs WHERE id != ? ORDER BY RANDOM() LIMIT 1", (new_current_id,)
-#                     ).fetchone()
-#                     if row:
-#                         conn.execute(
-#                             "UPDATE playback_state SET next_song_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1",
-#                             (row["id"],),
-#                         )
-#                     else:
-#                         # no other songs, keep next_song_id = new_current_id (or NULL)
-#                         conn.execute(
-#                             "UPDATE playback_state SET next_song_id = current_song_id, updated_at = CURRENT_TIMESTAMP WHERE id = 1"
-#                         )
-
-#                 conn.commit()
-
-#                 # Fetch and return the full current and next rows (file_path/title)
-#                 current = conn.execute(
-#                     "SELECT s.id, s.file_path, s.title, s.source_type FROM playback_state ps JOIN songs s ON ps.current_song_id = s.id WHERE ps.id = 1"
-#                 ).fetchone()
-#                 nxt = conn.execute(
-#                     "SELECT s.id, s.file_path, s.title, s.source_type FROM playback_state ps JOIN songs s ON ps.next_song_id = s.id WHERE ps.id = 1"
-#                 ).fetchone()
-
-#                 def row_to_dict(r):
-#                     res  = {"id": r["id"], "file_path": r["file_path"], "title": r["title"], "source_type": r["source_type"]} if r else None
-#                     print(f"ROW: {res}")
-#                     return res
-                
-#                 return row_to_dict(current), row_to_dict(nxt)
-
-#             except Exception:
-#                 conn.rollback()
-#                 raise
-#             finally:
-#                 conn.close()
-
-
-#     def cleanup_missing_files(self) -> int:
-#         """Remove songs from database where files no longer exist"""
-#         with self.lock:
-#             conn = sqlite3.connect(self.db_path)
-#             cursor = conn.cursor()
-            
-#             # Get all songs
-#             cursor.execute('SELECT id, file_path FROM songs WHERE source_type = "file"')
-#             songs = cursor.fetchall()
-            
-#             deleted_count = 0
-#             for song_id, file_path in songs:
-#                 if not os.path.exists(file_path):
-#                     cursor.execute('DELETE FROM songs WHERE id = ?', (song_id,))
-#                     deleted_count += 1
-            
-#             conn.commit()
-#             conn.close()
-#             return deleted_count
-    
-#     def get_stats(self) -> dict:
-#         """Get database statistics"""
-#         with self.lock:
-#             conn = sqlite3.connect(self.db_path)
-#             cursor = conn.cursor()
-            
-#             # Total songs
-#             cursor.execute('SELECT COUNT(*) FROM songs')
-#             total_songs = cursor.fetchone()[0]
-            
-#             # Most played song
-#             cursor.execute('''
-#                 SELECT title, play_count FROM songs 
-#                 ORDER BY play_count DESC LIMIT 1
-#             ''')
-#             most_played = cursor.fetchone()
-            
-#             # Total play count
-#             cursor.execute('SELECT SUM(play_count) FROM songs')
-#             total_plays = cursor.fetchone()[0] or 0
-            
-#             conn.close()
-            
-#             return {
-#                 'total_songs': total_songs,
-#                 'total_plays': total_plays,
-#                 'most_played': most_played[0] if most_played else None,
-#                 'most_played_count': most_played[1] if most_played else 0
-#             }
-
-#     def register_user(self, username, password) -> dict: 
-#         with self.lock:
-#             conn = sqlite3.connect(self.db_path)
-#             cursor = conn.cursor()
-            
-#             cursor.execute("INSERT INTO users (username, password) VALUES (?, ?)", 
-#                        (username, hash_password(password)))
-            
-#             conn.commit()
-#             conn.close()
-    
-#     def get_user(self, username):
-#         with self.lock:
-#             conn = sqlite3.connect(self.db_path)
-#             cursor = conn.cursor()
-            
-#             cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
-#             user = cursor.fetchone()
-#             conn.close()
-            
-#             return user
-        
-    
-#     def save_youtube_link(self, song: YouTubeSong):
-#         with self.lock:
-#             conn = sqlite3.connect(self.db_path)
-#             cursor = conn.cursor()
-            
-#             cursor.execute("""
-#                 INSERT INTO songs (file_path, title, source_type)
-#                 VALUES (?, ?, 'youtube')
-#             """, (song.url, song.title))
-#             conn.commit()
-#             conn.close()
-            
-#             return True
-
-
 class MusicDatabaseMysql:
 
     def __init__(self, db_path: str = os.path.join(Config.BASE_DIR, "data/music_stream.db")):
@@ -628,7 +156,7 @@ class MusicDatabaseMysql:
                 cursor.close()
                 conn.close()
     
-    def set_current_song(self, song_id: int, next_song_id: Optional[int] = None, position: int = 0):
+    def set_current_song(self, song_id: int, next_song_id: Optional[int] = None, position: int = 0, application_id: int = 1):
         """Set currently playing song and optionally next song"""
         conn = None
         try:
@@ -638,8 +166,8 @@ class MusicDatabaseMysql:
             cursor.execute('''
                 UPDATE playback_state 
                 SET current_song_id = %s, next_song_id = %s, playlist_position = %s, updated_at = CURRENT_TIMESTAMP
-                WHERE id = 1
-            ''', (song_id, next_song_id, position))
+                WHERE id = %s
+            ''', (song_id, next_song_id, position, application_id))
             
             conn.commit()
             
@@ -653,7 +181,7 @@ class MusicDatabaseMysql:
                 cursor.close()
                 conn.close()
     
-    def get_current_song(self) -> Optional[Tuple]:
+    def get_current_song(self, application_id: int = 1) -> Optional[Tuple]:
         """Get currently playing song info"""
         conn = None
         try:
@@ -663,8 +191,8 @@ class MusicDatabaseMysql:
             cursor.execute('''
                 SELECT s.* FROM songs s
                 JOIN playback_state p ON s.id = p.current_song_id
-                WHERE p.id = 1
-            ''')
+                WHERE p.id = %s
+            ''', (application_id,))
             result = cursor.fetchone()
             
             return result
@@ -677,7 +205,7 @@ class MusicDatabaseMysql:
                 cursor.close()
                 conn.close()
     
-    def get_next_song(self) -> Optional[Tuple]:
+    def get_next_song(self, application_id: int = 1) -> Optional[Tuple]:
         """Get next song to be played"""
         conn = None
         try:
@@ -687,8 +215,8 @@ class MusicDatabaseMysql:
             cursor.execute('''
                 SELECT s.* FROM songs s
                 JOIN playback_state p ON s.id = p.next_song_id
-                WHERE p.id = 1
-            ''')
+                WHERE p.id = %s
+            ''', (application_id,))
             result = cursor.fetchone()
             
             return result
@@ -701,7 +229,7 @@ class MusicDatabaseMysql:
                 cursor.close()
                 conn.close()
     
-    def get_playback_state(self) -> Optional[Tuple]:
+    def get_playback_state(self, application_id: int = 1) -> Optional[Tuple]:
         """Get current playback state: (current_song_id, next_song_id, playlist_position, is_streaming, updated_at)"""
         conn = None
         try:
@@ -710,8 +238,8 @@ class MusicDatabaseMysql:
             
             cursor.execute('''
                 SELECT current_song_id, next_song_id, playlist_position, is_streaming, updated_at
-                FROM playback_state WHERE id = 1
-            ''')
+                FROM playback_state WHERE id = %s
+            ''', (application_id,))
             result = cursor.fetchone()
             
             return result
@@ -724,7 +252,7 @@ class MusicDatabaseMysql:
                 cursor.close()
                 conn.close()
     
-    def start_streaming(self):
+    def start_streaming(self, application_id: int = 1):
         """Create playback state record when streaming starts"""
         conn = None
         try:
@@ -735,8 +263,8 @@ class MusicDatabaseMysql:
             cursor.execute('''
                 UPDATE playback_state 
                 SET is_streaming = 1, updated_at = CURRENT_TIMESTAMP
-                WHERE id = 1
-            ''')
+                WHERE id = %s
+            ''', (application_id,))
             
             conn.commit()
             
@@ -750,7 +278,7 @@ class MusicDatabaseMysql:
                 cursor.close()
                 conn.close()
     
-    def stop_streaming(self):
+    def stop_streaming(self, application_id: int = 1):
         """Remove playback state record when streaming stops"""
         conn = None
         try:
@@ -761,8 +289,8 @@ class MusicDatabaseMysql:
             cursor.execute('''
                 UPDATE playback_state 
                 SET is_streaming = 0, updated_at = CURRENT_TIMESTAMP
-                WHERE id = 1
-            ''')
+                WHERE id = %s
+            ''', (application_id,))
             
             conn.commit()
             
@@ -776,14 +304,14 @@ class MusicDatabaseMysql:
                 cursor.close()
                 conn.close()
     
-    def is_streaming(self) -> bool:
+    def is_streaming(self, application_id: int = 1) -> bool:
         """Check if streaming is active"""
         conn = None
         try:
             conn = self.get_connection()
             cursor = conn.cursor()
             
-            cursor.execute('SELECT is_streaming FROM playback_state WHERE id = 1')
+            cursor.execute('SELECT is_streaming FROM playback_state WHERE id = %s', (application_id,))
             result = cursor.fetchone()
             
             return bool(result[0]) if result else False
@@ -819,7 +347,7 @@ class MusicDatabaseMysql:
                 cursor.close()
                 conn.close()
     
-    def advance_playback(self, increment_play_count=False):
+    def advance_playback(self, increment_play_count=False, application_id: int = 1):
         """
         Promote next -> current, optionally increment play_count for new current,
         select a new random next (excluding current), and return (current, next).
@@ -836,11 +364,11 @@ class MusicDatabaseMysql:
             
             # Ensure playback_state exists
             cursor.execute(
-                "INSERT IGNORE INTO playback_state (id, is_streaming) VALUES (1, 0)"
+                "INSERT IGNORE INTO playback_state (id, is_streaming) VALUES (%s, 0)", (application_id,)
             )
 
             cursor.execute(
-                "SELECT current_song_id, next_song_id FROM playback_state WHERE id = 1"
+                "SELECT current_song_id, next_song_id FROM playback_state WHERE id = %s", (application_id,)
             )
             ps = cursor.fetchone()
             current_id = ps["current_song_id"] if ps else None
@@ -849,8 +377,8 @@ class MusicDatabaseMysql:
             # Case A: first-run, both NULL -> choose two random songs (or one if only one)
             if not current_id and not next_id:
                 cursor.execute(
-                    "SELECT id, file_path, title, source_type FROM songs WHERE song_play_time = %s ORDER BY RAND() LIMIT 2",
-                    (Config.get_play_time(),)
+                    "SELECT id, file_path, title, source_type FROM songs WHERE song_play_time = %s and application_id = %s ORDER BY RAND() LIMIT 2",
+                    (Config.get_play_time(), application_id)
                 )
                 rows = cursor.fetchall()
                 if not rows:
@@ -865,8 +393,8 @@ class MusicDatabaseMysql:
                     next_row = rows[1]
 
                 cursor.execute(
-                    "UPDATE playback_state SET current_song_id = %s, next_song_id = %s, updated_at = CURRENT_TIMESTAMP WHERE id = 1",
-                    (cur_row["id"], next_row["id"]),
+                    "UPDATE playback_state SET current_song_id = %s, next_song_id = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s",
+                    (cur_row["id"], next_row["id"], application_id),
                 )
 
                 cursor.execute(
@@ -879,30 +407,31 @@ class MusicDatabaseMysql:
                 # If there is no next_id (weird case), pick a random next that isn't current
                 if next_id is None:
                     cursor.execute(
-                        "SELECT id FROM songs WHERE id != %s AND song_play_time = %s ORDER BY RAND() LIMIT 1", (current_id, Config.get_play_time())
+                        "SELECT id FROM songs WHERE id != %s AND song_play_time = %s and application_id = %s ORDER BY RAND() LIMIT 1", 
+                        (current_id, Config.get_play_time(), application_id)
                     )
                     row = cursor.fetchone()
                     if row:
                         next_id = row["id"]
                         cursor.execute(
-                            "UPDATE playback_state SET next_song_id = %s, updated_at = CURRENT_TIMESTAMP WHERE id = 1",
-                            (next_id,),
+                            "UPDATE playback_state SET next_song_id = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s",
+                            (next_id, application_id),
                         )
                     else: 
                         cursor.execute(
-                            "UPDATE playback_state SET next_song_id = %s, updated_at = CURRENT_TIMESTAMP WHERE id = 1",
-                            (current_id,),
+                            "UPDATE playback_state SET next_song_id = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s",
+                            (current_id, application_id),
                         )
                         next_id = current_id
 
                 # Promote next -> current
                 cursor.execute(
-                    "UPDATE playback_state SET current_song_id = next_song_id, updated_at = CURRENT_TIMESTAMP WHERE id = 1"
+                    "UPDATE playback_state SET current_song_id = next_song_id, updated_at = CURRENT_TIMESTAMP WHERE id = %s", (application_id,)
                 )
 
                 # Get the newly promoted current ID
                 cursor.execute(
-                    "SELECT current_song_id FROM playback_state WHERE id = 1"
+                    "SELECT current_song_id FROM playback_state WHERE id = %s", (application_id,)
                 )
                 new_current_id = cursor.fetchone()["current_song_id"]
 
@@ -915,33 +444,34 @@ class MusicDatabaseMysql:
                 # Pick a new random next (exclude the new current)
                 if Config.ONLY_FILES:
                     cursor.execute(
-                    "SELECT id FROM songs WHERE id != %s AND source_type = 'file' ORDER BY RAND() LIMIT 1", (new_current_id,)
+                    "SELECT id FROM songs WHERE id != %s AND source_type = 'file' and application_id = %s ORDER BY RAND() LIMIT 1", (new_current_id,application_id)
                     )
                 else:
                     cursor.execute(
-                        "SELECT id FROM songs WHERE id != %s AND song_play_time = %s ORDER BY RAND() LIMIT 1", (new_current_id, Config.get_play_time(),)
+                        "SELECT id FROM songs WHERE id != %s AND song_play_time = %s and application_id = %s ORDER BY RAND() LIMIT 1", 
+                        (new_current_id, Config.get_play_time(),application_id)
                     )
                 row = cursor.fetchone()
                 if row:
                     cursor.execute(
-                        "UPDATE playback_state SET next_song_id = %s, updated_at = CURRENT_TIMESTAMP WHERE id = 1",
-                        (row["id"],),
+                        "UPDATE playback_state SET next_song_id = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s",
+                        (row["id"], application_id),
                     )
                 else:
                     # no other songs, keep next_song_id = new_current_id (or NULL)
                     cursor.execute(
-                        "UPDATE playback_state SET next_song_id = current_song_id, updated_at = CURRENT_TIMESTAMP WHERE id = 1"
+                        "UPDATE playback_state SET next_song_id = current_song_id, updated_at = CURRENT_TIMESTAMP WHERE id = %s", (application_id,)
                     )
 
             conn.commit()
 
             # Fetch and return the full current and next rows (file_path/title)
             cursor.execute(
-                "SELECT s.id, s.file_path, s.title, s.source_type FROM playback_state ps JOIN songs s ON ps.current_song_id = s.id WHERE ps.id = 1"
+                "SELECT s.id, s.file_path, s.title, s.source_type FROM playback_state ps JOIN songs s ON ps.current_song_id = s.id WHERE ps.id = %s", (application_id,)
             )
             current = cursor.fetchone()
             cursor.execute(
-                "SELECT s.id, s.file_path, s.title, s.source_type FROM playback_state ps JOIN songs s ON ps.next_song_id = s.id WHERE ps.id = 1"
+                "SELECT s.id, s.file_path, s.title, s.source_type FROM playback_state ps JOIN songs s ON ps.next_song_id = s.id WHERE ps.id = %s", (application_id,)
             )
             nxt = cursor.fetchone()
 
