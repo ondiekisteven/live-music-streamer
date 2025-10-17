@@ -71,7 +71,6 @@ def get_ffmpeg_stream_cmd(pulse_name) -> list:
             "-reconnect_at_eof", "1",
             
             # TCP and RTMP settings
-            "-tcp_nodelay", "1",
             "-timeout", "3000000",
             "-rtmp_buffer", "1000",
             "-rtmp_live", "live",
@@ -110,9 +109,9 @@ def run_ffmpeg(ffmpeg_cmd, application_id):
         text=True,
         bufsize=1,
     )
-    send_ntfy_notification("🎬 Stream process launched...", priority='max', application_id=application_id)
 
     stream_started = False
+    send_ntfy_notification("🎬 Stream process launched...", priority='max', application_id=application_id)
 
     for line in ffmpeg_process.stdout:
         logger.warning(line.strip())
