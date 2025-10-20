@@ -1,9 +1,9 @@
 import logging
 import signal
 import subprocess
+import sys
 import time
 from config import Config
-from main import signal_handler
 from music_db import MusicDatabaseMysql as MusicDatabase
 from utils import send_ntfy_notification
 
@@ -30,57 +30,40 @@ def get_ffmpeg_stream_cmd(pulse_name) -> list:
     if Config.VIDEO_SOURCE == 'image':
         return [
             Config.FFMPEG_PATH,
-            "-hide_banner",
-            
-            # Input settings
-            "-re", 
+            # "-hide_banner",
+            "-re",
             "-thread_queue_size", "1024",
-            "-loop", "1", 
+            "-loop", "1",
             "-i", Config.BACKGROUND_IMAGE,
-            "-f", "pulse", 
-            "-thread_queue_size", "1024",  # Also for audio input
+            "-thread_queue_size", "1024",
+            "-f", "pulse",
             "-i", f"{pulse_name}.monitor",
-            
-            # Mapping
-            "-map", "0:v", 
+
+            "-map", "0:v",
             "-map", "1:a",
-            
-            # Video encoding
-            "-c:v", "libx264", 
+
+            "-c:v", "libx264",
             "-preset", Config.VIDEO_PRESET,
             "-tune", Config.VIDEO_TUNE,
-            "-g", "60", 
+            "-g", "60",
             "-pix_fmt", "yuv420p",
             "-b:v", Config.VIDEO_BITRATE,
-            
-            # Audio encoding
-            "-c:a", "aac", 
+
+            "-c:a", "aac",
             "-b:a", Config.AUDIO_BITRATE,
             "-ar", "44100",
             "-ac", "2",
-            
-            # Output format
-            "-f", "flv", 
-            "-loglevel", "warning",  # Changed from verbose to reduce noise
-            "-stats",  # Still show progress stats
-            
-            # Critical reconnection settings (NEW)
-            "-reconnect", "1",
-            "-reconnect_streamed", "1",
-            "-reconnect_delay_max", "2",
-            "-reconnect_at_eof", "1",
-            
-            # TCP and RTMP settings
-            "-timeout", "3000000",
-            "-rtmp_buffer", "1000",
+
+            "-f", "flv",
+            "-loglevel", "info",  # 'verbose' is noisy; 'info' still shows progress
+            "-stats",
+
             "-rtmp_live", "live",
-            
-            "-err_detect", "ignore_err",
             "-max_muxing_queue_size", "1024",
-            
+
             Config.RTMP_URL,
         ]
-    # for video source
+    
     return [
         Config.FFMPEG_PATH,
         "-re", "-thread_queue_size", "1024",
@@ -124,14 +107,28 @@ def run_ffmpeg(ffmpeg_cmd, application_id):
     ffmpeg_process.wait()
     return ffmpeg_process.returncode
 
-
-def main():
+def setup_signal_handler(application_id):
+    def signal_handler(signum, frame):
+        """Handle shutdown signals gracefully"""
+        logger.warning(f"Received signal {signum}, shutting down gracefully...")
+        db.stop_streaming()
+        logger.warning("Streaming stopped (signal handler)")
+            
+        send_ntfy_notification(
+            f"🚨 Received signal {signum}, shutting down gracefully...",
+            priority='max',
+            application_id=application_id
+        )
+        sys.exit(0)
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
+
     
+def main():
     pulse_name = Config.PULSE_NAME
     application_id = Config.APPLICATION_ID
     db.start_streaming(application_id=application_id)
+    setup_signal_handler(application_id=application_id)
     
     retry_delay = 0.1
     max_consecutive_failures = 30
@@ -147,6 +144,11 @@ def main():
             if exit_code == 0:
                 logger.info("FFmpeg exited normally.")
                 consecutive_failures = 0  # Reset on success
+                send_ntfy_notification(
+                    f"🚨 Stream exited normally",
+                    priority='max',
+                    application_id=application_id
+                )
                 break
             else:
                 consecutive_failures += 1
