@@ -1,9 +1,10 @@
 import logging
 import sqlite3
-from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, status
+from fastapi import FastAPI, HTTPException, Query, UploadFile, File, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from jose import jwt, JWTError
-from typing import List
+from typing import Dict, List
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer, OAuth2PasswordRequestForm
 import os
 import sys
@@ -11,8 +12,10 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import mysql
+import yt_dlp
 
 from schemas import *
+from utils import extract_playlist_id, get_playlist_videos
 
 # Add the ffmpeg directory to the path to import modules
 sys.path.append(str(Path(__file__).parent.parent / "ffmpeg"))
@@ -332,6 +335,20 @@ def add_youtube_song(song: YouTubeSong, username: str = Depends(get_current_user
     except Exception as e:
         logger.exception(e)
         raise HTTPException(status_code=500, detail='A server error occured. Try again later')
+
+@app.get("/api/youtube/playlist")
+async def fetch_playlist(url: str = Query(..., description="YouTube playlist or video URL")):
+    playlist_id = extract_playlist_id(url)
+    if not playlist_id:
+        raise HTTPException(status_code=400, detail="No playlist ID found in URL")
+
+    playlist_url = f"https://www.youtube.com/playlist?list={playlist_id}"
+    try:
+        videos = get_playlist_videos(playlist_url)
+        return JSONResponse(content={"playlist_id": playlist_id, "count": len(videos), "videos": videos})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 if __name__ == "__main__":
     import uvicorn
