@@ -111,6 +111,7 @@ async def get_status(username: str = Depends(get_current_user)):
 async def get_all_songs(username: str = Depends(get_current_user)):
     """Get all songs in the database"""
     try:
+        return []
         songs_data = db.get_all_songs()
         songs = []
         for song_data in songs_data:
@@ -309,7 +310,6 @@ def register(user: UserRegister):
 @app.post("/api/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
     user = db.get_user(form_data.username)
-    print(f"USER: {user}")
     if not user or not verify_password(form_data.password, user[2]):
         raise HTTPException(status_code=401, detail="Invalid username or password")
     token = create_access_token(
