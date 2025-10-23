@@ -1,3 +1,28 @@
+x-common-env: &common-env
+      - PYTHONPATH=/app
+      - DATABASE_PATH=/app/data/music_stream.db
+      - LOGS_DIR=/app/logs
+      - VIDEO_WIDTH=1280
+      - VIDEO_HEIGHT=720
+      - AUDIO_SAMPLE_RATE=44100
+      - AUDIO_CHANNELS=2
+      - AUDIO_BITRATE=128k
+      - LOG_LEVEL=INFO
+      - LOG_TO_CONSOLE=true
+      - LOG_TO_FILE=true
+      - ENABLE_FILE_WATCHING=true
+      - ENABLE_DB_CLEANUP=true
+      - DISPLAY=$DISPLAY
+      - PULSE_SERVER=unix:/run/user/1000/pulse/native
+      - ENABLE_DB_STATS=true
+      - MYSQL_HOST=172.16.0.180
+      - MYSQL_USER=root
+      - MYSQL_PASS=Xy2E3JazKXkYdMZw
+      - MYSQL_DB=music_db
+      - MYSQL_PORT=43306
+      - TZ=Africa/Nairobi
+      - NTFY_TOPIC=https://ntfy.somwaki.com/streamer
+
 services:
   streamer:
     # image: registry.gitlab.com/sondieki/ffmpeg:latest
@@ -11,24 +36,8 @@ services:
     devices: 
       - "/dev/snd:/dev/snd"
     environment:
-      - PYTHONPATH=/app
-      - DATABASE_PATH=/app/data/music_stream.db
-      - LOGS_DIR=/app/logs
       - YOUTUBE_URL=rtmp://a.rtmp.youtube.com/live2/4f28-fgx3-hw6c-8fj7-cd59
       - RTMP_URL=rtmp://a.rtmp.youtube.com/live2/4f28-fgx3-hw6c-8fj7-cd59
-      - VIDEO_WIDTH=1280
-      - VIDEO_HEIGHT=720
-      - AUDIO_SAMPLE_RATE=44100
-      - AUDIO_CHANNELS=2
-      - AUDIO_BITRATE=128k
-      - LOG_LEVEL=INFO
-      - LOG_TO_CONSOLE=true
-      - LOG_TO_FILE=true
-      - ENABLE_FILE_WATCHING=true
-      - ENABLE_DB_CLEANUP=true
-      - ENABLE_DB_STATS=true
-      - DISPLAY=$DISPLAY
-      - PULSE_SERVER=unix:/run/user/1000/pulse/native
     volumes:
       # essentials
       - /tmp/.X11-unix:/tmp/.X11-unix
