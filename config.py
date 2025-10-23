@@ -143,9 +143,10 @@ class Config:
     # PLAY TIME
     # =============================================================================
     
-    MORNING_PLAY_TIME = int(os.getenv('MORNING_PLAY_TIME', '9'))
-    DAY_PLAY_TIME = int(os.getenv('DAY_PLAY_TIME', '15'))
-    EVENING_PLAY_TIME = int(os.getenv('EVENING_PLAY_TIME', '20'))
+    MORNING_PLAY_TIME = int(os.getenv('MORNING_PLAY_TIME', '4'))
+    DAY_PLAY_TIME = int(os.getenv('DAY_PLAY_TIME', '9'))
+    EVENING_PLAY_TIME = int(os.getenv('EVENING_PLAY_TIME', '15'))
+    NIGHT_PLAY_TIME = int(os.getenv('EVENING_PLAY_TIME', '21'))
     
     # =============================================================================
     # VALIDATION AND INITIALIZATION
@@ -287,11 +288,13 @@ class Config:
         if cls.OVERRIDE_WITH_DAY_SONGS:
             return 'day'
         hour = datetime.now().hour
-        if hour < cls.MORNING_PLAY_TIME:
-            return 'morning'
+        if hour < cls.MORNING_PLAY_TIME: 
+            return 'night'
         if hour < cls.DAY_PLAY_TIME: 
-            return 'day'
+            return 'morning'
         if hour < cls.EVENING_PLAY_TIME:
+            return 'day'
+        if hour < cls.NIGHT_PLAY_TIME:
             return 'evening'
         return 'night'
     
