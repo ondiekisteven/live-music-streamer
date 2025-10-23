@@ -46,4 +46,4 @@ uvloop==0.21.0
 watchdog==6.0.0
 watchfiles==1.1.0
 websockets==15.0.1
-yt-dlp==2025.9.26
+yt-dlp==2025.10.22

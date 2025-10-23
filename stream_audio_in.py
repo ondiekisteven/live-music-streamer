@@ -101,8 +101,17 @@ def stream_loop(application_id, pulse_name):
 
             elif source_type == "youtube":
                 try:
+                    if os.getenv("USE_YOUTUBE_COOKIE", "0") == '1':
+                        _cmd = ["yt-dlp", "--cookies", Config.YOUTUBE_COOKIES_LOCATION, "-f", "bestaudio[protocol=m3u8]/bestaudio[ext=m4a]/bestaudio", "--no-part", "--no-playlist", "-o", "-", file_path]
+                    elif os.getenv("USE_HLS_ONLY", "0") == '1':
+                        _cmd = ["yt-dlp", "-f", "bestaudio[ext=m4a]/bestaudio[protocol=m3u8]/bestaudio", "--no-part", "--no-playlist", "-o", "-", file_path]
+                    else:
+                        _cmd = ["yt-dlp", "-f", "bestaudio", "--no-part", "--no-playlist", "-o", "-", file_path]
+                    
+                    print(' '.join(_cmd))
+
                     yt_proc = subprocess.Popen(
-                        ["yt-dlp", "-f", "bestaudio", "--no-part", "--no-playlist", "-o", "-", file_path],
+                        _cmd,
                         stdout=subprocess.PIPE
                     )
 
