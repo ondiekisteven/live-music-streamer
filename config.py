@@ -381,3 +381,5 @@ class Config:
     NTFY_TOPIC = os.getenv('NTFY_TOPIC', 'streamer')
     NTFY_TITLE = os.getenv('NTFY_TITLE', 'Stream Alert')
     NTFY_PRIORITY = os.getenv('NTFY_PRIORITY', 'high')
+
+    YOUTUBE_COOKIES_LOCATION = os.getenv('YOUTUBE_COOKIES_LOCATION', '/app/cookies.txt')
