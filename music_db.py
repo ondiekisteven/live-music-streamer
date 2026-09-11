@@ -347,6 +347,81 @@ class MusicDatabaseMysql:
                 cursor.close()
                 conn.close()
     
+    def get_weighted_random_song(self, cursor, application_id, exclude_id=None):
+        """
+        Select a random song, weighted toward songs with fewer plays.
+
+        Songs with lower play_count have a higher probability of selection.
+        """
+
+        params = [application_id]
+        where = [
+            "application_id = %s"
+        ]
+
+        if Config.ONLY_FILES:
+            where.append("source_type = 'file'")
+        else:
+            where.append("song_play_time = %s")
+            params.append(Config.get_play_time())
+
+        if exclude_id is not None:
+            where.append("id != %s")
+            params.append(exclude_id)
+
+        where_clause = " AND ".join(where)
+
+        # Get total weight
+        cursor.execute(
+            f"""
+            SELECT COALESCE(
+                SUM(1.0 / (COALESCE(play_count, 0) + 1)),
+                0
+            ) AS total_weight
+            FROM songs
+            WHERE {where_clause}
+            """,
+            tuple(params)
+        )
+
+        result = cursor.fetchone()
+        total_weight = float(result["total_weight"] or 0)
+
+        if total_weight <= 0:
+            return None
+
+        # Pick random point in weighted distribution
+        import random
+
+        target = random.random() * total_weight
+
+        # Fetch songs and walk through cumulative weight
+        cursor.execute(
+            f"""
+            SELECT
+                id,
+                file_path,
+                title,
+                source_type,
+                play_count,
+                (1.0 / (COALESCE(play_count, 0) + 1)) AS weight
+            FROM songs
+            WHERE {where_clause}
+            ORDER BY id
+            """,
+            tuple(params)
+        )
+
+        cumulative = 0
+
+        for row in cursor.fetchall():
+            cumulative += float(row["weight"])
+
+            if cumulative >= target:
+                return row
+
+        return None
+    
     def advance_playback(self, increment_play_count=False, application_id: int = 1):
         """
         Promote next -> current, optionally increment play_count for new current,
@@ -406,11 +481,11 @@ class MusicDatabaseMysql:
                 # Case B: normal promotion
                 # If there is no next_id (weird case), pick a random next that isn't current
                 if next_id is None:
-                    cursor.execute(
-                        "SELECT id FROM songs WHERE id != %s AND song_play_time = %s and application_id = %s ORDER BY RAND() LIMIT 1", 
-                        (current_id, Config.get_play_time(), application_id)
+                    row = self.get_weighted_random_song(
+                        cursor,
+                        application_id,
+                        exclude_id=new_current_id
                     )
-                    row = cursor.fetchone()
                     if row:
                         next_id = row["id"]
                         cursor.execute(
@@ -442,16 +517,11 @@ class MusicDatabaseMysql:
                     )
 
                 # Pick a new random next (exclude the new current)
-                if Config.ONLY_FILES:
-                    cursor.execute(
-                    "SELECT id FROM songs WHERE id != %s AND source_type = 'file' and application_id = %s ORDER BY RAND() LIMIT 1", (new_current_id,application_id)
-                    )
-                else:
-                    cursor.execute(
-                        "SELECT id FROM songs WHERE id != %s AND song_play_time = %s and application_id = %s ORDER BY RAND() LIMIT 1", 
-                        (new_current_id, Config.get_play_time(),application_id)
-                    )
-                row = cursor.fetchone()
+                row = self.get_weighted_random_song(
+                    cursor,
+                    application_id,
+                    exclude_id=new_current_id
+                )
                 if row:
                     cursor.execute(
                         "UPDATE playback_state SET next_song_id = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s",
