@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from typing import List, Optional
 
-# Pydantic models
+
 class SongInfo(BaseModel):
     id: int
     file_path: str
@@ -11,7 +11,7 @@ class SongInfo(BaseModel):
     play_count: int
     created_at: str
 
-# Pydantic models
+
 class SongInfoResp(BaseModel):
     id: int
     title: str
@@ -19,7 +19,8 @@ class SongInfoResp(BaseModel):
     last_played: Optional[str]
     play_count: int
     created_at: str
-    
+
+
 class CurrentStatus(BaseModel):
     current_song: Optional[SongInfo]
     next_song: Optional[SongInfo]
@@ -27,22 +28,26 @@ class CurrentStatus(BaseModel):
     total_songs: int
     is_streaming: bool
 
+
 class Stats(BaseModel):
     total_songs: int
     total_plays: int
     most_played: Optional[str]
     most_played_count: int
 
+
 class UploadResponse(BaseModel):
     message: str
     filename: str
     song_id: int
+
 
 class FileUploadResult(BaseModel):
     filename: str
     song_id: int
     status: str
     error: str = None
+
 
 class MultipleUploadResponse(BaseModel):
     message: str
@@ -51,9 +56,11 @@ class MultipleUploadResponse(BaseModel):
     failed_uploads: int
     results: List[FileUploadResult]
 
+
 class UserRegister(BaseModel):
     username: str
     password: str
+
 
 class YouTubeSong(BaseModel):
     url: str

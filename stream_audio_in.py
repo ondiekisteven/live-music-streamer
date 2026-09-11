@@ -1,3 +1,13 @@
+"""
+so what are we doing; I want audio source to be independent of the stream. meaning I should be able to start an audio source and stop it 
+without stopping the output stream. Normally, ffmpeg blocks when the audio input stops, ultimately killing the output stream. 
+
+so what we did? use pulseaudio. Pulseaudio creates an null audio sink (fancy name to mean it can output quiet audio when there's no audio input). 
+so ffmpeg reads audio from the sink and combines whith the vide to stream to the rtmp endpoint. 
+
+This script loops, fetching a song from the db, and playing to the pulseaudio audio sink. if this script stops, our stream continues without blocking. 
+:)
+"""
 import os
 import logging
 import subprocess
@@ -5,8 +15,6 @@ import time
 import threading
 import signal
 import sys
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
 from music_db import MusicDatabaseMysql as MusicDatabase
 from config import Config
 from utils import send_ntfy_notification
@@ -139,7 +147,7 @@ def stream_loop(application_id, pulse_name):
             if p.poll() is None:
                 p.terminate()
 
-        logger.info("Streaming stopped")
+        logger.info("audio streaming stopped")
 
 
 def show_stats(application_id):

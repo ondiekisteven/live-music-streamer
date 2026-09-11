@@ -10,7 +10,7 @@ class Config:
     APPLICATION_ID: str = os.getenv("APPLICATION_ID", '')
     PULSE_NAME: str = os.getenv("PULSE_NAME", '')
 
-    VIDEO_SOURCE = os.getenv("VIDEO_SOURCE", "image")
+    VIDEO_SOURCE = os.getenv("VIDEO_SOURCE", "image") # or video
     ONLY_FILES = bool(int(os.getenv('ONLY_FILES', '1')))
     # =============================================================================
     # AUTHENTICATION
@@ -298,6 +298,7 @@ class Config:
             return 'evening'
         return 'night'
     
+    # deprecated
     @classmethod
     def get_ffmpeg_stream_cmd(cls) -> list:
         return [
@@ -329,7 +330,8 @@ class Config:
             cls.RTMP_URL
 
         ]
-        
+    
+    # deprecated
     @classmethod
     def get_ffmpeg_youtube_stream_cmd(cls, input_source: str = "pipe:0") -> list:
         return [

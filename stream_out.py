@@ -1,3 +1,9 @@
+"""
+This is the main stream output script. It combines audio from pulseaudio sink and a video source (could be a still image or a video. I prefer the image). 
+It sends the audio to an rtmp endpoint. 
+
+If this guy stops our stream dies. so whatever we do, this script must handle it's issues properly
+"""
 import logging
 import signal
 import subprocess
@@ -10,6 +16,7 @@ from utils import send_ntfy_notification
 db = MusicDatabase(Config.DATABASE_PATH)
 Config.configure_logger()
 logger = logging.getLogger(__name__)
+
 
 def get_ffmpeg_stream_cmd(pulse_name) -> list:
     base = [
@@ -107,6 +114,7 @@ def run_ffmpeg(ffmpeg_cmd, application_id):
     ffmpeg_process.wait()
     return ffmpeg_process.returncode
 
+
 def setup_signal_handler(application_id):
     def signal_handler(signum, frame):
         """Handle shutdown signals gracefully"""
@@ -174,6 +182,7 @@ def main():
         finally:
             logger.info(f"Restarting stream in {retry_delay}s...")
             time.sleep(retry_delay)
+
 
 if __name__ == '__main__':
     main()
