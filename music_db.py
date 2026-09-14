@@ -721,6 +721,24 @@ class MusicDatabaseMysql:
                     "UPDATE songs SET play_count = play_count + 1, last_played = CURRENT_TIMESTAMP WHERE id = %s",
                     (cur_row["id"],),
                 )
+                cursor.execute(
+                    """
+                    INSERT INTO song_play_history (
+                        application_id,
+                        song_id,
+                        played_at
+                    )
+                    VALUES (
+                        %s,
+                        %s,
+                        CURRENT_TIMESTAMP
+                    )
+                    """,
+                    (
+                        application_id,
+                        cur_row["id"]
+                    )
+                )
 
             else:
                 # Case B: normal promotion
@@ -787,6 +805,7 @@ class MusicDatabaseMysql:
                             new_current_id
                         )
                     )
+                    logger.info(f"[<<<<>>>>] inserting into song_play_history table: {new_current_id}")
 
                 # Pick a new random next (exclude the new current)
                 row = self.get_random_song_from_pool(
