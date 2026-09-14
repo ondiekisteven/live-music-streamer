@@ -421,7 +421,252 @@ class MusicDatabaseMysql:
                 return row
 
         return None
-    
+
+
+    def get_random_song_from_pool(
+        self,
+        cursor,
+        application_id,
+        exclude_id=None
+    ):
+        """
+        Select a random song from a pool consisting of:
+
+            - N least-played songs
+            - N random songs
+
+        Songs played within the configured cooldown window are excluded.
+
+        The pool sizes and cooldown are controlled by playback_settings.
+        """
+
+        import random
+
+        # ---------------------------------------------------------
+        # Get playback settings
+        # ---------------------------------------------------------
+
+        cursor.execute(
+            """
+            SELECT
+                least_played_pool_size,
+                random_pool_size,
+                cooldown_songs
+            FROM playback_settings
+            WHERE application_id = %s
+            """,
+            (application_id,)
+        )
+
+        settings = cursor.fetchone()
+
+        # Safe defaults if settings don't exist
+        if settings:
+            least_played_count = max(
+                0,
+                int(settings["least_played_pool_size"])
+            )
+
+            random_count = max(
+                0,
+                int(settings["random_pool_size"])
+            )
+
+            cooldown_songs = max(
+                0,
+                int(settings["cooldown_songs"])
+            )
+        else:
+            least_played_count = 10
+            random_count = 10
+            cooldown_songs = 20
+
+        # ---------------------------------------------------------
+        # Build common WHERE clause
+        # ---------------------------------------------------------
+
+        params = [application_id]
+
+        where = [
+            "s.application_id = %s"
+        ]
+
+        if Config.ONLY_FILES:
+            where.append("s.source_type = 'file'")
+        else:
+            where.append(
+                "s.song_play_time = %s"
+            )
+            params.append(Config.get_play_time())
+
+        if exclude_id is not None:
+            where.append("s.id != %s")
+            params.append(exclude_id)
+
+        where_clause = " AND ".join(where)
+
+        # ---------------------------------------------------------
+        # Get songs in cooldown
+        #
+        # These are the most recently played N songs.
+        # ---------------------------------------------------------
+
+        cooldown_ids = set()
+
+        if cooldown_songs > 0:
+            cursor.execute(
+                """
+                SELECT song_id
+                FROM song_play_history
+                WHERE application_id = %s
+                ORDER BY played_at DESC, id DESC
+                LIMIT %s
+                """,
+                (
+                    application_id,
+                    cooldown_songs
+                )
+            )
+
+            cooldown_ids = {
+                row["song_id"]
+                for row in cursor.fetchall()
+            }
+
+        # ---------------------------------------------------------
+        # Build cooldown exclusion
+        # ---------------------------------------------------------
+
+        cooldown_clause = ""
+
+        if cooldown_ids:
+            placeholders = ", ".join(
+                ["%s"] * len(cooldown_ids)
+            )
+
+            cooldown_clause = f"""
+                AND s.id NOT IN ({placeholders})
+            """
+
+        # ---------------------------------------------------------
+        # 1. Get least-played songs
+        # ---------------------------------------------------------
+
+        least_played = []
+
+        if least_played_count > 0:
+
+            least_params = list(params)
+
+            least_params.extend(
+                cooldown_ids
+            )
+
+            cursor.execute(
+                f"""
+                SELECT
+                    s.id,
+                    s.file_path,
+                    s.title,
+                    s.source_type,
+                    s.play_count
+                FROM songs s
+                WHERE {where_clause}
+                {cooldown_clause}
+                ORDER BY COALESCE(s.play_count, 0) ASC, s.id ASC
+                LIMIT %s
+                """,
+                tuple(
+                    least_params + [least_played_count]
+                )
+            )
+
+            least_played = cursor.fetchall()
+
+        # ---------------------------------------------------------
+        # 2. Get random songs
+        # ---------------------------------------------------------
+
+        random_songs = []
+
+        if random_count > 0:
+
+            random_params = list(params)
+
+            random_params.extend(
+                cooldown_ids
+            )
+
+            cursor.execute(
+                f"""
+                SELECT
+                    s.id,
+                    s.file_path,
+                    s.title,
+                    s.source_type,
+                    s.play_count
+                FROM songs s
+                WHERE {where_clause}
+                {cooldown_clause}
+                ORDER BY RAND()
+                LIMIT %s
+                """,
+                tuple(
+                    random_params + [random_count]
+                )
+            )
+
+            random_songs = cursor.fetchall()
+
+        # ---------------------------------------------------------
+        # 3. Combine pools and remove duplicates
+        # ---------------------------------------------------------
+
+        pool = {}
+
+        for song in least_played:
+            pool[song["id"]] = song
+
+        for song in random_songs:
+            pool[song["id"]] = song
+
+        pool = list(pool.values())
+
+        # ---------------------------------------------------------
+        # 4. If cooldown eliminated everything, fallback
+        #
+        # This is important for small libraries.
+        # ---------------------------------------------------------
+
+        if not pool:
+
+            fallback_params = list(params)
+
+            cursor.execute(
+                f"""
+                SELECT
+                    s.id,
+                    s.file_path,
+                    s.title,
+                    s.source_type,
+                    s.play_count
+                FROM songs s
+                WHERE {where_clause}
+                ORDER BY RAND()
+                LIMIT 1
+                """,
+                tuple(fallback_params)
+            )
+
+            return cursor.fetchone()
+
+        # ---------------------------------------------------------
+        # 5. Select one completely randomly from the pool
+        # ---------------------------------------------------------
+
+        return random.choice(pool)
+
+
     def advance_playback(self, increment_play_count=False, application_id: int = 1):
         """
         Promote next -> current, optionally increment play_count for new current,
@@ -481,7 +726,7 @@ class MusicDatabaseMysql:
                 # Case B: normal promotion
                 # If there is no next_id (weird case), pick a random next that isn't current
                 if next_id is None:
-                    row = self.get_weighted_random_song(
+                    row = self.get_random_song_from_pool(
                         cursor,
                         application_id,
                         exclude_id=new_current_id
@@ -511,13 +756,40 @@ class MusicDatabaseMysql:
                 new_current_id = cursor.fetchone()["current_song_id"]
 
                 if increment_play_count:
+                    # Update aggregate statistics
                     cursor.execute(
-                        "UPDATE songs SET play_count = play_count + 1, last_played = CURRENT_TIMESTAMP WHERE id = %s",
+                        """
+                        UPDATE songs
+                        SET
+                            play_count = COALESCE(play_count, 0) + 1,
+                            last_played = CURRENT_TIMESTAMP
+                        WHERE id = %s
+                        """,
                         (new_current_id,),
                     )
 
+                    # Record individual play
+                    cursor.execute(
+                        """
+                        INSERT INTO song_play_history (
+                            application_id,
+                            song_id,
+                            played_at
+                        )
+                        VALUES (
+                            %s,
+                            %s,
+                            CURRENT_TIMESTAMP
+                        )
+                        """,
+                        (
+                            application_id,
+                            new_current_id
+                        )
+                    )
+
                 # Pick a new random next (exclude the new current)
-                row = self.get_weighted_random_song(
+                row = self.get_random_song_from_pool(
                     cursor,
                     application_id,
                     exclude_id=new_current_id
