@@ -805,7 +805,7 @@ class MusicDatabaseMysql:
                             new_current_id
                         )
                     )
-                    logger.info(f"[<<<<>>>>] inserting into song_play_history table: {new_current_id}")
+                    print(f"[<<<<>>>>] inserting into song_play_history table: {new_current_id}")
 
                 # Pick a new random next (exclude the new current)
                 row = self.get_random_song_from_pool(
