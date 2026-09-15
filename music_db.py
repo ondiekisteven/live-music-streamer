@@ -786,26 +786,26 @@ class MusicDatabaseMysql:
                         (new_current_id,),
                     )
 
-                    # Record individual play
-                    cursor.execute(
-                        """
-                        INSERT INTO song_play_history (
-                            application_id,
-                            song_id,
-                            played_at
-                        )
-                        VALUES (
-                            %s,
-                            %s,
-                            CURRENT_TIMESTAMP
-                        )
-                        """,
-                        (
-                            application_id,
-                            new_current_id
-                        )
+                # Record individual play
+                cursor.execute(
+                    """
+                    INSERT INTO song_play_history (
+                        application_id,
+                        song_id,
+                        played_at
                     )
-                    print(f"[<<<<>>>>] inserting into song_play_history table: {new_current_id}")
+                    VALUES (
+                        %s,
+                        %s,
+                        CURRENT_TIMESTAMP
+                    )
+                    """,
+                    (
+                        application_id,
+                        new_current_id
+                    )
+                )
+                logger.info(f"[<<<<>>>>] inserting into song_play_history table: {new_current_id}")
 
                 # Pick a new random next (exclude the new current)
                 row = self.get_random_song_from_pool(
