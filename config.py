@@ -83,6 +83,14 @@ class Config:
     
     # Audio chunk size for streaming
     AUDIO_CHUNK_SIZE = int(os.getenv('AUDIO_CHUNK_SIZE', '4096'))
+
+    # RTMP/FLV timestamps are signed 32-bit ms and wrap after ~24.8 days, which kills
+    # the stream downstream. Restart the output process before that happens.
+    # After STREAM_MAX_RUNTIME_HOURS, restart during STREAM_RESTART_HOUR (local time, -1 = any hour).
+    STREAM_MAX_RUNTIME_HOURS = float(os.getenv('STREAM_MAX_RUNTIME_HOURS', '168'))
+    STREAM_RESTART_HOUR = int(os.getenv('STREAM_RESTART_HOUR', '4'))
+    # Restart regardless of STREAM_RESTART_HOUR once this is reached (must stay below 24.8 days)
+    STREAM_HARD_MAX_RUNTIME_HOURS = float(os.getenv('STREAM_HARD_MAX_RUNTIME_HOURS', '480'))
     
     # =============================================================================
     # APPLICATION CONFIGURATION

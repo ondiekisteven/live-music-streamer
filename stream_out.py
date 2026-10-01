@@ -8,7 +8,9 @@ import logging
 import signal
 import subprocess
 import sys
+import threading
 import time
+from datetime import datetime
 from config import Config
 from music_db import MusicDatabaseMysql as MusicDatabase
 from utils import send_ntfy_notification
@@ -90,6 +92,35 @@ def get_ffmpeg_stream_cmd(pulse_name) -> list:
     ]
 
 
+def restart_due(started_at) -> bool:
+    runtime_hours = (time.monotonic() - started_at) / 3600
+    if runtime_hours >= Config.STREAM_HARD_MAX_RUNTIME_HOURS:
+        return True
+    if runtime_hours < Config.STREAM_MAX_RUNTIME_HOURS:
+        return False
+    return Config.STREAM_RESTART_HOUR < 0 or datetime.now().hour == Config.STREAM_RESTART_HOUR
+
+
+def watch_runtime(ffmpeg_process, started_at, restart_requested):
+    """Stop ffmpeg before the RTMP timestamps wrap (~24.8 days) so the loop in main() restarts it."""
+    while ffmpeg_process.poll() is None:
+        if restart_due(started_at):
+            logger.warning("Max stream runtime reached, restarting ffmpeg to reset RTMP timestamps")
+            restart_requested.set()
+            try:
+                # 'q' lets ffmpeg finish the FLV stream cleanly
+                ffmpeg_process.stdin.write("q")
+                ffmpeg_process.stdin.flush()
+            except (BrokenPipeError, OSError, ValueError):
+                pass
+            try:
+                ffmpeg_process.wait(timeout=15)
+            except subprocess.TimeoutExpired:
+                ffmpeg_process.terminate()
+            return
+        time.sleep(60)
+
+
 def run_ffmpeg(ffmpeg_cmd, application_id):
     ffmpeg_process = subprocess.Popen(
         ffmpeg_cmd,
@@ -99,6 +130,13 @@ def run_ffmpeg(ffmpeg_cmd, application_id):
         text=True,
         bufsize=1,
     )
+
+    restart_requested = threading.Event()
+    threading.Thread(
+        target=watch_runtime,
+        args=(ffmpeg_process, time.monotonic(), restart_requested),
+        daemon=True,
+    ).start()
 
     stream_started = False
     send_ntfy_notification("🎬 Stream process launched...", priority='max', application_id=application_id)
@@ -112,7 +150,7 @@ def run_ffmpeg(ffmpeg_cmd, application_id):
             stream_started = True
 
     ffmpeg_process.wait()
-    return ffmpeg_process.returncode
+    return ffmpeg_process.returncode, restart_requested.is_set()
 
 
 def setup_signal_handler(application_id):
@@ -147,9 +185,17 @@ def main():
         
         try:
             logger.info("🚀 Starting FFmpeg stream...")
-            exit_code = run_ffmpeg(ffmpeg_cmd, application_id)
-            
-            if exit_code == 0:
+            exit_code, planned_restart = run_ffmpeg(ffmpeg_cmd, application_id)
+
+            if planned_restart:
+                logger.info(f"Planned ffmpeg restart done (exit code {exit_code}).")
+                consecutive_failures = 0
+                send_ntfy_notification(
+                    "🔄 Planned stream restart (RTMP timestamp reset)",
+                    priority='default',
+                    application_id=application_id
+                )
+            elif exit_code == 0:
                 logger.info("FFmpeg exited normally.")
                 consecutive_failures = 0  # Reset on success
                 send_ntfy_notification(
