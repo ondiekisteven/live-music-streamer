@@ -15,15 +15,26 @@ x-common-env: &common-env
       - DISPLAY=$DISPLAY
       - PULSE_SERVER=unix:/run/user/1000/pulse/native
       - ENABLE_DB_STATS=true
-      - MYSQL_HOST=172.16.0.180
-      - MYSQL_USER=root
+      - MYSQL_HOST=mysql
+      - MYSQL_USER=music_db
       - MYSQL_PASS=Xy2E3JazKXkYdMZw
-      - MYSQL_DB=music_db
-      - MYSQL_PORT=43306
+      - MYSQL_DB=appUser
+      - MYSQL_PORT=3306
       - TZ=Africa/Nairobi
       - NTFY_TOPIC=https://ntfy.somwaki.com/streamer
 
 services:
+  mysql:
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootPassword
+      MYSQL_DATABASE: music_db
+      MYSQL_PASSWORD: appPassword
+      MYSQL_USER: appUser
+  volumes: 
+    ./data/mysql_data:/var/lib/mysql
+  
   streamer:
     # image: registry.gitlab.com/sondieki/ffmpeg:latest
     build:
